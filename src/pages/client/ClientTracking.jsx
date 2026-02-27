@@ -1,21 +1,23 @@
 import { useState } from 'react';
 import { supabase } from '../../supabaseClient';
-import { FiSearch, FiSmartphone, FiCheckCircle, FiClock, FiAlertCircle, FiMessageSquare, FiLoader } from 'react-icons/fi';
+import { FiSearch, FiSmartphone, FiCheckCircle, FiClock, FiAlertCircle, FiMessageSquare, FiLoader, FiCheck } from 'react-icons/fi';
 import { motion, AnimatePresence } from 'framer-motion';
+import Swal from 'sweetalert2';
+import { jsPDF } from 'jspdf';
 
-// Palette de couleurs pour les statuts
+// --- Palette de couleurs identique au reste de l'app ---
 const getStatusBadgeColor = (idStatut) => {
   switch (idStatut) {
-    case 1: return 'bg-slate-100 text-slate-700'; 
-    case 2: return 'bg-purple-100 text-purple-700'; 
-    case 3: return 'bg-yellow-100 text-yellow-800'; 
-    case 4: return 'bg-rose-100 text-rose-700'; 
-    case 5: return 'bg-blue-100 text-blue-700'; 
-    case 6: return 'bg-emerald-100 text-emerald-700'; 
-    case 7: return 'bg-teal-100 text-teal-700'; 
-    case 8: return 'bg-gray-200 text-gray-800'; 
-    case 9: return 'bg-red-100 text-red-800'; 
-    default: return 'bg-slate-100 text-slate-700';
+    case 1: return 'bg-slate-100 text-slate-700 border-slate-200';
+    case 2: return 'bg-purple-100 text-purple-700 border-purple-200';
+    case 3: return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+    case 4: return 'bg-rose-100 text-rose-700 border-rose-200';
+    case 5: return 'bg-blue-100 text-blue-700 border-blue-200';
+    case 6: return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+    case 7: return 'bg-teal-100 text-teal-700 border-teal-200';
+    case 8: return 'bg-gray-200 text-gray-800 border-gray-300';
+    case 9: return 'bg-red-100 text-red-800 border-red-200';
+    default: return 'bg-slate-100 text-slate-700 border-slate-200';
   }
 };
 
@@ -25,6 +27,27 @@ export default function ClientTracking() {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // --- Fonction de génération de facture PDF ---
+  const downloadInvoice = (rep, invoice) => {
+    const doc = new jsPDF();
+    doc.setFontSize(22); doc.setTextColor(37, 99, 235); doc.text("QuickRepair", 20, 20);
+    doc.setFontSize(12); doc.setTextColor(100); doc.text("FACTURE ACQUITTÉE", 20, 30);
+    doc.setTextColor(0); doc.text(`Facture N° : ${invoice.numero_facture}`, 20, 45);
+    doc.text(`Date d'émission : ${new Date(invoice.date_emission).toLocaleDateString('fr-FR')}`, 20, 52);
+    doc.text(`Ticket : ${rep.numero_suivi}`, 20, 59);
+    doc.text("Client :", 120, 45); doc.setFontSize(10); doc.setTextColor(80);
+    doc.text(`${rep.appareils.clients.prenom} ${rep.appareils.clients.nom}`, 120, 52);
+    doc.setDrawColor(200); doc.line(20, 75, 190, 75);
+    doc.setFontSize(12); doc.setTextColor(0); doc.text("Désignation", 20, 82); doc.text("Total TTC", 165, 82);
+    doc.line(20, 85, 190, 85);
+    doc.setFontSize(10); doc.setTextColor(80);
+    doc.text(`Réparation : ${rep.appareils.marque} ${rep.appareils.modele}`, 20, 95);
+    doc.text(`${invoice.montant_total} €`, 165, 95);
+    doc.setFontSize(14); doc.setTextColor(37, 99, 235);
+    doc.text(`Total réglé par ${invoice.mode_paiement} : ${invoice.montant_total} €`, 20, 120);
+    doc.save(`Facture_${rep.numero_suivi}.pdf`);
+  };
 
   const handleSearch = async (e) => {
     e.preventDefault();
@@ -36,22 +59,39 @@ export default function ClientTracking() {
     setHistory([]);
 
     try {
-      // ASTUCE : On ajoute un délai de 1.5s pour laisser l'animation jouer (Effet pro garanti)
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      await new Promise(resolve => setTimeout(resolve, 1500)); // Animation de scan
 
       const { data: repData, error: repError } = await supabase
         .from('reparations')
         .select(`
-          id_reparation, numero_suivi, date_prise_en_charge, id_statut_actuel,
+          id_reparation, numero_suivi, id_statut_actuel,
           statuts ( libelle ),
-          appareils ( marque, modele )
+          appareils ( marque, modele, clients ( nom, prenom ) ),
+          factures ( numero_facture, montant_total, mode_paiement, date_emission )
         `)
         .ilike('numero_suivi', trackingNumber.trim())
-        .single();
+        .maybeSingle();
 
-      if (repError || !repData) throw new Error("Aucun appareil trouvé avec ce numéro de suivi.");
+      if (repError || !repData) throw new Error("Numéro de suivi introuvable.");
 
       setRepairData(repData);
+
+      if (repData.id_statut_actuel === 8) {
+        Swal.fire({
+          title: 'Appareil Livré ! 🎉',
+          html: `Votre <b>${repData.appareils.marque} ${repData.appareils.modele}</b> est de nouveau entre vos mains.`,
+          icon: 'success',
+          showCancelButton: repData.factures?.length > 0,
+          confirmButtonColor: '#10b981',
+          cancelButtonColor: '#3b82f6',
+          confirmButtonText: 'Fermer',
+          cancelButtonText: '📄 Télécharger ma facture'
+        }).then((result) => {
+          if (result.dismiss === Swal.DismissReason.cancel) {
+            downloadInvoice(repData, repData.factures[0]);
+          }
+        });
+      }
 
       const { data: histData } = await supabase
         .from('historique_statuts')
@@ -68,108 +108,129 @@ export default function ClientTracking() {
   };
 
   return (
-    <div className="min-h-[calc(100vh-76px)] bg-slate-50 flex flex-col items-center py-12 px-4 sm:px-6 lg:px-8 font-sans overflow-hidden">
+    <div className="min-h-[calc(100vh-76px)] bg-slate-50 flex flex-col items-center py-12 px-4 font-sans">
       
-      <div className="max-w-xl w-full text-center mb-10 animate-fade-in relative z-10">
-        <h1 className="text-4xl font-extrabold text-slate-800 mb-4 tracking-tight">Suivez votre réparation</h1>
-        <p className="text-slate-500 mb-8 text-lg">Entrez le numéro de suivi présent sur votre ticket de dépôt.</p>
-        
-        <form onSubmit={handleSearch} className="relative flex items-center shadow-lg rounded-2xl overflow-hidden bg-white border border-slate-200 focus-within:ring-2 focus-within:ring-blue-500 transition-all">
-          <div className="pl-6 text-slate-400"><FiSearch className="text-xl" /></div>
+      {/* --- Section Recherche --- */}
+      <div className="max-w-xl w-full text-center mb-12">
+        <motion.h1 initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="text-4xl font-extrabold text-slate-800 mb-4 tracking-tight">
+          Où en est mon appareil ?
+        </motion.h1>
+        <form onSubmit={handleSearch} className="relative flex items-center shadow-xl rounded-2xl overflow-hidden bg-white border border-slate-200 focus-within:ring-2 focus-within:ring-blue-500 transition-all">
+          <div className="pl-6 text-slate-400"><FiSearch /></div>
           <input
             type="text"
-            placeholder="Ex: QR-45892"
-            className="w-full py-4 pl-4 pr-32 text-lg text-slate-800 placeholder-slate-300 outline-none font-medium uppercase"
+            placeholder="Entrez votre N° de suivi (ex: QR-12345)"
+            className="w-full py-5 pl-4 pr-32 text-lg text-slate-800 outline-none uppercase font-bold"
             value={trackingNumber}
             onChange={(e) => setTrackingNumber(e.target.value.toUpperCase())}
           />
-          <button type="submit" disabled={loading || !trackingNumber} className="absolute right-2 top-2 bottom-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white px-6 rounded-xl font-bold transition shadow-sm flex items-center gap-2">
-            {loading ? <><FiLoader className="animate-spin" /> Scan...</> : 'Suivre'}
+          <button type="submit" disabled={loading} className="absolute right-2 top-2 bottom-2 bg-blue-600 text-white px-8 rounded-xl font-black tracking-wide transition hover:bg-blue-700">
+            {loading ? <FiLoader className="animate-spin text-xl" /> : 'SUIVRE'}
           </button>
         </form>
-
-        {error && (
-          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mt-6 p-4 bg-red-50 text-red-600 rounded-xl border border-red-100 flex items-center justify-center gap-2 font-medium shadow-sm">
-            <FiAlertCircle className="text-xl" /> {error}
-          </motion.div>
-        )}
+        {error && <div className="mt-4 text-red-500 font-bold flex items-center justify-center gap-2"><FiAlertCircle /> {error}</div>}
       </div>
 
       <AnimatePresence mode="wait">
-        {/* L'ANIMATION DE CHARGEMENT */}
         {loading && (
-          <motion.div 
-            key="loader"
-            initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }}
-            className="flex flex-col items-center justify-center py-12"
-          >
-            <div className="relative w-24 h-24 flex items-center justify-center">
-              <div className="absolute inset-0 border-4 border-blue-100 rounded-full"></div>
-              <div className="absolute inset-0 border-4 border-blue-600 rounded-full border-t-transparent animate-spin"></div>
-              <FiSmartphone className="text-3xl text-blue-600 animate-pulse" />
-            </div>
-            <p className="mt-6 text-slate-500 font-bold tracking-widest uppercase animate-pulse">Recherche sécurisée...</p>
+          <motion.div key="loader" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center py-10">
+            <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+            <p className="mt-4 text-slate-400 font-bold uppercase tracking-widest">Analyse du ticket...</p>
           </motion.div>
         )}
 
-        {/* LES RÉSULTATS */}
         {repairData && !loading && (
-          <motion.div 
-            key="results"
-            initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -40 }} transition={{ type: "spring", stiffness: 200, damping: 20 }}
-            className="w-full max-w-3xl relative z-10"
-          >
-            <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-6 md:p-8 mb-8 flex flex-col md:flex-row items-center justify-between gap-6 overflow-hidden relative">
-              {/* Décoration d'arrière-plan */}
-              <div className="absolute -right-10 -top-10 w-40 h-40 bg-blue-50 rounded-full blur-3xl opacity-50 pointer-events-none"></div>
-              
-              <div className="flex items-center gap-5 relative z-10">
-                <div className="w-16 h-16 bg-gradient-to-br from-blue-50 to-blue-100 text-blue-600 rounded-2xl flex items-center justify-center shrink-0 border border-blue-200 shadow-sm">
-                  <FiSmartphone className="text-3xl" />
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Votre appareil</p>
-                  <h2 className="text-2xl font-extrabold text-slate-800">{repairData.appareils?.marque} {repairData.appareils?.modele}</h2>
-                  <p className="text-slate-500 font-mono text-sm mt-1">Ticket N° {repairData.numero_suivi}</p>
-                </div>
-              </div>
-              <div className="text-center md:text-right flex flex-col items-center md:items-end relative z-10">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Statut Actuel</p>
-                <span className={`px-4 py-2 rounded-full text-sm font-black uppercase tracking-wide border shadow-sm ${getStatusBadgeColor(repairData.id_statut_actuel).replace('bg-', 'bg-').replace('text-', 'text- border-')}`}>
-                  {repairData.statuts?.libelle}
-                </span>
-              </div>
+          <motion.div key="results" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-4xl">
+            
+            {/* --- Résumé de l'appareil --- */}
+            <div className="bg-white rounded-3xl shadow-lg border border-slate-100 p-8 mb-8 flex flex-col md:flex-row justify-between items-center gap-6 relative overflow-hidden">
+               <div className="absolute top-0 right-0 p-4 bg-blue-600 text-white font-mono text-xs rounded-bl-2xl">
+                 SUIVI OFFICIEL
+               </div>
+               <div className="flex items-center gap-6">
+                 <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-3xl flex items-center justify-center border border-blue-100 shadow-inner">
+                   <FiSmartphone className="text-4xl" />
+                 </div>
+                 <div>
+                   <h2 className="text-3xl font-black text-slate-800 uppercase italic leading-none">{repairData.appareils.marque}</h2>
+                   <p className="text-xl font-bold text-slate-500">{repairData.appareils.modele}</p>
+                   <p className="text-sm font-mono text-blue-600 mt-2">Ticket ID: {repairData.numero_suivi}</p>
+                 </div>
+               </div>
+               <div className="text-center md:text-right">
+                 <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2">État Actuel</p>
+                 <span className={`px-6 py-3 rounded-2xl text-sm font-black uppercase tracking-tighter border-2 shadow-sm ${getStatusBadgeColor(repairData.id_statut_actuel)}`}>
+                   {repairData.statuts.libelle}
+                 </span>
+               </div>
             </div>
 
-            <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-6 md:p-8">
-              <h3 className="text-lg font-bold text-slate-800 mb-8 flex items-center gap-2"><FiClock className="text-blue-500" /> Historique des interventions</h3>
-              <div className="space-y-8 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-blue-200 before:to-slate-100">
-                {history.map((hist, index) => (
-                  <motion.div initial={{ opacity: 0, x: index % 2 === 0 ? -20 : 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.1 }} key={hist.id_historique} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
-                    <div className={`flex items-center justify-center w-10 h-10 rounded-full border-4 border-white shadow-md shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10 ${index === 0 ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-400'}`}>
-                      <FiCheckCircle className="text-lg" />
-                    </div>
-                    <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-slate-50 p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition duration-300">
-                      <div className="flex flex-col md:flex-row md:items-center justify-between mb-2 gap-1">
-                        <span className={`px-3 py-1 rounded-lg text-xs font-bold uppercase border shadow-sm ${getStatusBadgeColor(hist.id_statut).replace('bg-', 'bg-').replace('text-', 'text- border-')}`}>
-                          {hist.statuts?.libelle}
-                        </span>
-                        <span className="text-xs font-bold text-slate-400">{new Date(hist.date_changement).toLocaleDateString('fr-FR')} - {new Date(hist.date_changement).toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'})}</span>
+            {/* --- LA TIMELINE (ANCIENNE INTERFACE) --- */}
+            <div className="bg-white rounded-3xl shadow-lg border border-slate-100 p-8 md:p-12 relative">
+              <h3 className="text-2xl font-black text-slate-800 mb-10 flex items-center gap-3">
+                <FiClock className="text-blue-600" /> PARCOURS DE RÉPARATION
+              </h3>
+
+              <div className="relative">
+                {/* Ligne verticale de fond */}
+                <div className="absolute left-[19px] top-2 bottom-2 w-1 bg-slate-100 rounded-full"></div>
+
+                <div className="space-y-12">
+                  {history.map((hist, index) => (
+                    <motion.div 
+                      key={hist.id_historique}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.1 }}
+                      className="relative pl-14 group"
+                    >
+                      {/* Le point sur la ligne */}
+                      <div className={`absolute left-0 top-1 w-10 h-10 rounded-full border-4 border-white shadow-md flex items-center justify-center z-10 transition-transform group-hover:scale-110 ${index === 0 ? 'bg-blue-600 text-white animate-pulse' : 'bg-emerald-500 text-white'}`}>
+                        {index === 0 ? <FiClock className="text-lg" /> : <FiCheck className="text-lg" />}
                       </div>
-                      {hist.commentaire && (
-                        <p className="text-sm text-slate-600 mt-3 bg-white p-3 rounded-xl border border-slate-200 flex items-start gap-2 shadow-sm">
-                          <FiMessageSquare className="text-blue-400 mt-0.5 shrink-0" />
-                          <span className="font-medium">"{hist.commentaire}"</span>
-                        </p>
-                      )}
-                    </div>
-                  </motion.div>
-                ))}
+
+                      {/* Le contenu de l'étape */}
+                      <div className={`p-6 rounded-2xl border-2 transition-all ${index === 0 ? 'bg-blue-50/30 border-blue-200 shadow-blue-100 shadow-lg' : 'bg-slate-50 border-slate-100 opacity-80'}`}>
+                        <div className="flex flex-col md:flex-row justify-between md:items-center gap-2 mb-3">
+                          <span className={`px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-wide border ${getStatusBadgeColor(hist.id_statut)}`}>
+                            {hist.statuts.libelle}
+                          </span>
+                          <span className="text-xs font-black text-slate-400 font-mono italic">
+                            {new Date(hist.date_changement).toLocaleDateString('fr-FR')} — {new Date(hist.date_changement).toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'})}
+                          </span>
+                        </div>
+                        
+                        {hist.commentaire ? (
+                          <div className="mt-4 p-4 bg-white rounded-xl border border-slate-200 shadow-inner italic text-slate-600 text-sm flex gap-3">
+                            <FiMessageSquare className="text-blue-400 shrink-0 mt-1" />
+                            <span>"{hist.commentaire}"</span>
+                          </div>
+                        ) : (
+                          <p className="text-sm text-slate-400 italic">Étape validée par nos techniciens.</p>
+                        )}
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
               </div>
+
+              {/* Message de fin si livré */}
+              {repairData.id_statut_actuel === 8 && (
+                <div className="mt-12 p-6 bg-emerald-50 border-2 border-dashed border-emerald-200 rounded-3xl text-center">
+                  <FiCheckCircle className="text-5xl text-emerald-500 mx-auto mb-3" />
+                  <p className="text-emerald-800 font-black uppercase">Dossier clôturé avec succès</p>
+                  <p className="text-emerald-600 text-sm mt-1 font-medium">L'appareil a été restitué au client.</p>
+                </div>
+              )}
             </div>
+
           </motion.div>
         )}
       </AnimatePresence>
+
+      <footer className="mt-20 text-slate-400 text-sm font-bold opacity-50 uppercase tracking-widest">
+        QuickRepair System v2.0 — Excellence Technique
+      </footer>
     </div>
   );
 }

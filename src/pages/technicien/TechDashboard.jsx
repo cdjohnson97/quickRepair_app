@@ -3,6 +3,7 @@ import { supabase } from '../../supabaseClient';
 import { useAuth } from '../../context/AuthContext';
 import { FiTool, FiCheck, FiAlertCircle, FiFilter, FiX, FiClock, FiMessageSquare, FiFileText } from 'react-icons/fi';
 import { motion, AnimatePresence } from 'framer-motion';
+import Swal from 'sweetalert2'; // Assurez-vous d'avoir installé sweetalert2
 
 const getStatusBadgeColor = (idStatut) => {
   switch (idStatut) {
@@ -26,7 +27,6 @@ export default function TechDashboard() {
   const [loading, setLoading] = useState(true);
   const [filterStatut, setFilterStatut] = useState('ALL');
 
-  // --- NOUVEAUX ÉTATS POUR LA MODALE (Dossier Complet) ---
   const [selectedRepair, setSelectedRepair] = useState(null);
   const [history, setHistory] = useState([]);
   const [newComment, setNewComment] = useState('');
@@ -34,8 +34,51 @@ export default function TechDashboard() {
   const [actionLoading, setActionLoading] = useState(false);
 
   useEffect(() => {
-    if (user) fetchData();
+    if (user) {
+      fetchData();
+      setupRealtimeSubscription();
+    }
   }, [user]);
+
+  // --- LOGIQUE DE NOTIFICATION TEMPS RÉEL ---
+  const setupRealtimeSubscription = () => {
+    if (!userData?.id_employe) return;
+
+    const channel = supabase
+      .channel('new-tasks')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'reparations',
+          filter: `id_technicien=eq.${userData.id_employe}`
+        },
+        (payload) => {
+          // Déclenchement de la notification Toast
+          const Toast = Swal.mixin({
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 5000,
+            timerProgressBar: true,
+          });
+
+          Toast.fire({
+            icon: 'info',
+            title: 'Nouvelle tâche assignée ! 🛠️',
+            text: `Ticket #${payload.new.numero_suivi} ajouté à votre liste.`
+          });
+
+          fetchData(); // Rafraîchir la liste
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -64,7 +107,6 @@ export default function TechDashboard() {
     }
   };
 
-  // --- NOUVELLE FONCTION : Charger l'historique ---
   const fetchHistory = async (idReparation) => {
     const { data } = await supabase
       .from('historique_statuts')
@@ -74,7 +116,6 @@ export default function TechDashboard() {
     setHistory(data || []);
   };
 
-  // --- NOUVELLE FONCTION : Ouvrir le dossier ---
   const openModal = (rep) => {
     setSelectedRepair(rep);
     setNewStatusId(rep.id_statut_actuel);
@@ -82,13 +123,11 @@ export default function TechDashboard() {
     fetchHistory(rep.id_reparation);
   };
 
-  // --- FONCTION AMÉLIORÉE : Mise à jour + Commentaire ---
   const handleUpdateStatusAndComment = async (e) => {
     e.preventDefault();
     setActionLoading(true);
     
     try {
-      // 1. On met à jour le statut (Le Trigger SQL va créer une ligne d'historique automatique)
       const { error: updateError } = await supabase
         .from('reparations')
         .update({ id_statut_actuel: parseInt(newStatusId) })
@@ -96,9 +135,7 @@ export default function TechDashboard() {
         
       if (updateError) throw updateError;
 
-      // 2. Si le technicien a tapé un commentaire, on remplace le commentaire générique
       if (newComment.trim() !== '') {
-        // On cherche la ligne d'historique que le Trigger vient tout juste de créer
         const { data: latestHistory } = await supabase
           .from('historique_statuts')
           .select('id_historique')
@@ -115,11 +152,9 @@ export default function TechDashboard() {
         }
       }
 
-      // 3. On rafraîchit tout
       await fetchData();
       await fetchHistory(selectedRepair.id_reparation);
       
-      // On met à jour la sélection locale pour refléter le changement
       setSelectedRepair({ ...selectedRepair, id_statut_actuel: parseInt(newStatusId) });
       setNewComment('');
       
@@ -206,7 +241,6 @@ export default function TechDashboard() {
                   </p>
                 </div>
 
-                {/* BOUTON OUVRIR LE DOSSIER */}
                 <div className="mt-auto pt-4 relative z-10 border-t border-slate-100">
                   <button 
                     onClick={() => openModal(rep)}
@@ -225,21 +259,18 @@ export default function TechDashboard() {
       <AnimatePresence>
         {selectedRepair && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            {/* Arrière-plan flou */}
             <motion.div 
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               onClick={() => setSelectedRepair(null)}
               className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
             />
             
-            {/* Contenu de la Modale */}
             <motion.div 
               initial={{ opacity: 0, y: 50, scale: 0.95 }} 
               animate={{ opacity: 1, y: 0, scale: 1 }} 
               exit={{ opacity: 0, y: 20, scale: 0.95 }}
               className="relative w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
             >
-              {/* En-tête Modale */}
               <div className="bg-slate-800 p-6 text-white flex justify-between items-center shrink-0">
                 <div>
                   <h2 className="text-2xl font-bold flex items-center gap-3">
@@ -252,10 +283,8 @@ export default function TechDashboard() {
                 </button>
               </div>
 
-              {/* Corps Modale : Divisé en 2 colonnes */}
               <div className="flex flex-col md:flex-row flex-grow overflow-hidden bg-slate-50">
                 
-                {/* Colonne Gauche : Infos & Action */}
                 <div className="w-full md:w-1/2 p-6 overflow-y-auto border-r border-slate-200 bg-white">
                   
                   <div className="mb-6">
@@ -273,7 +302,6 @@ export default function TechDashboard() {
                     </div>
                   </div>
 
-                  {/* Formulaire de mise à jour */}
                   <form onSubmit={handleUpdateStatusAndComment} className="bg-blue-50/50 p-5 rounded-xl border border-blue-100">
                     <h3 className="text-blue-800 font-bold mb-4 flex items-center gap-2">
                       <FiTool /> Mettre à jour l'intervention
@@ -308,7 +336,6 @@ export default function TechDashboard() {
                   </form>
                 </div>
 
-                {/* Colonne Droite : L'historique (Timeline) */}
                 <div className="w-full md:w-1/2 p-6 overflow-y-auto bg-slate-50">
                   <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-6 flex items-center gap-2">
                     <FiClock /> Historique d'intervention
@@ -317,12 +344,10 @@ export default function TechDashboard() {
                   <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-300 before:to-transparent">
                     {history.map((hist, index) => (
                       <div key={hist.id_historique} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
-                        {/* L'icône centrale */}
                         <div className="flex items-center justify-center w-10 h-10 rounded-full border-4 border-white bg-blue-100 text-blue-600 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
                           <FiCheck className="text-lg" />
                         </div>
                         
-                        {/* Le contenu */}
                         <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
                           <div className="flex items-center justify-between mb-1">
                             <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${getStatusBadgeColor(hist.id_statut)}`}>
