@@ -4,21 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { FiTool, FiCheck, FiAlertCircle, FiFilter, FiX, FiClock, FiMessageSquare, FiFileText } from 'react-icons/fi';
 import { motion, AnimatePresence } from 'framer-motion';
 import Swal from 'sweetalert2'; // Assurez-vous d'avoir installé sweetalert2
-
-const getStatusBadgeColor = (idStatut) => {
-  switch (idStatut) {
-    case 1: return 'bg-slate-100 text-slate-700';
-    case 2: return 'bg-purple-100 text-purple-700';
-    case 3: return 'bg-yellow-100 text-yellow-800';
-    case 4: return 'bg-rose-100 text-rose-700';
-    case 5: return 'bg-blue-100 text-blue-700';
-    case 6: return 'bg-emerald-100 text-emerald-700';
-    case 7: return 'bg-teal-100 text-teal-700';
-    case 8: return 'bg-gray-200 text-gray-800';
-    case 9: return 'bg-red-100 text-red-800';
-    default: return 'bg-slate-100 text-slate-700';
-  }
-};
+import { getStatusBadgeColor } from '../../constants/statuts';
 
 export default function TechDashboard() {
   const { user, userData } = useAuth();
@@ -159,7 +145,7 @@ export default function TechDashboard() {
       setNewComment('');
       
     } catch (error) {
-      alert("Erreur lors de la mise à jour : " + error.message);
+      Swal.fire('Erreur', "Erreur lors de la mise à jour : " + error.message, 'error');
     } finally {
       setActionLoading(false);
     }

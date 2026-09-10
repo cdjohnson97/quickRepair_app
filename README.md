@@ -1,4 +1,20 @@
-# React + Vite
+# QuickRepair
+
+Application de suivi de réparations : front React/Vite et API FastAPI en cours de migration.
+
+## Backend FastAPI local
+
+- `backend/` contient l'API, son environnement Python et l'infrastructure temps réel Redis.
+- Créez la configuration locale avec `Copy-Item backend/.env.example backend/.env`.
+- Activez l'environnement : `backend\\.venv\\Scripts\\Activate.ps1`.
+- Démarrez Redis : `docker compose up -d redis`.
+- Lancez l'API : `backend\\.venv\\Scripts\\uvicorn.exe app.main:app --app-dir backend --reload`.
+
+L'état de l'API sera disponible sur `http://localhost:8000/api/v1/health` et sa documentation sur `http://localhost:8000/docs`.
+
+Le front continue volontairement d'utiliser Supabase durant cette première étape. Les accès sensibles seront déplacés progressivement vers FastAPI, puis les WebSockets sécurisés seront connectés au front.
+
+## Interface Vite existante
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { supabase } from '../../supabaseClient';
 import { useAuth } from '../../context/AuthContext';
 import { FiTool, FiClock, FiCheckCircle, FiTrendingUp, FiPieChart, FiPlus, FiX, FiSearch, FiUser, FiCheck, FiPrinter } from 'react-icons/fi';
@@ -7,30 +7,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Swal from 'sweetalert2';
 import { jsPDF } from 'jspdf';
 import SignatureCanvas from 'react-signature-canvas';
-
-// --- Palette de couleurs pour les statuts ---
-const getStatusBadgeColor = (idStatut) => {
-  switch (idStatut) {
-    case 1: return 'bg-slate-100 text-slate-700';
-    case 2: return 'bg-purple-100 text-purple-700';
-    case 3: return 'bg-yellow-100 text-yellow-800';
-    case 4: return 'bg-rose-100 text-rose-700';
-    case 5: return 'bg-blue-100 text-blue-700';
-    case 6: return 'bg-emerald-100 text-emerald-700';
-    case 7: return 'bg-teal-100 text-teal-700';
-    case 8: return 'bg-gray-200 text-gray-800';
-    case 9: return 'bg-red-100 text-red-800';
-    default: return 'bg-slate-100 text-slate-700';
-  }
-};
-
-const evolutionData = [ { mois: 'Sept', reparations: 45 }, { mois: 'Oct', reparations: 52 }, { mois: 'Nov', reparations: 38 }, { mois: 'Déc', reparations: 65 }, { mois: 'Jan', reparations: 48 }, { mois: 'Fév', reparations: 74 } ];
-const statusData = [ { name: 'En cours', value: 35 }, { name: 'Terminées', value: 45 }, { name: 'En attente pièce', value: 15 }, { name: 'Annulées', value: 5 } ];
-const COLORS = ['#f59e0b', '#10b981', '#3b82f6', '#ef4444'];
+import emailjs from '@emailjs/browser';
+import { getStatusBadgeColor, STATUS_COLORS } from '../../constants/statuts';
 
 export default function ManagerDashboard() {
   const { userData } = useAuth();
-  const [stats, setStats] = useState({ total: 0, enCours: 0, terminees: 0 });
   const [loading, setLoading] = useState(true);
   
   // --- ÉTATS CRÉATION TICKET ---
@@ -49,20 +30,51 @@ export default function ManagerDashboard() {
   const [selectedRepairForInvoice, setSelectedRepairForInvoice] = useState(null);
   const [invoiceData, setInvoiceData] = useState({ amount: '', paymentMethod: 'CB' });
   const [isGeneratingInvoice, setIsGeneratingInvoice] = useState(false);
-  const sigCanvas = useRef({}); 
+  const sigCanvas = useRef({});
 
   useEffect(() => {
     if (userData?.id_boutique) fetchDashboardData();
   }, [userData]);
 
+  const stats = useMemo(() => ({
+    total: reparationsList.length,
+    enCours: reparationsList.filter(r => r.id_statut_actuel === 5).length,
+    terminees: reparationsList.filter(r => [6, 8].includes(r.id_statut_actuel)).length,
+  }), [reparationsList]);
+
+  const evolutionData = useMemo(() => {
+    const now = new Date();
+    const months = Array.from({ length: 6 }, (_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
+      const label = d.toLocaleDateString('fr-FR', { month: 'short' }).replace('.', '');
+      return { key: `${d.getFullYear()}-${d.getMonth()}`, mois: label.charAt(0).toUpperCase() + label.slice(1), reparations: 0 };
+    });
+
+    reparationsList.forEach(rep => {
+      const d = new Date(rep.date_prise_en_charge);
+      const key = `${d.getFullYear()}-${d.getMonth()}`;
+      const bucket = months.find(m => m.key === key);
+      if (bucket) bucket.reparations += 1;
+    });
+
+    return months.map(({ mois, reparations }) => ({ mois, reparations }));
+  }, [reparationsList]);
+
+  const statusData = useMemo(() => {
+    const counts = new Map();
+    reparationsList.forEach(rep => {
+      const idStatut = rep.id_statut_actuel;
+      if (!counts.has(idStatut)) {
+        counts.set(idStatut, { name: rep.statuts?.libelle || 'Inconnu', value: 0, idStatut });
+      }
+      counts.get(idStatut).value += 1;
+    });
+    return Array.from(counts.values()).sort((a, b) => a.idStatut - b.idStatut);
+  }, [reparationsList]);
+
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      const { count: totalCount } = await supabase.from('reparations').select('*', { count: 'exact', head: true });
-      const { count: enCoursCount } = await supabase.from('reparations').select('*', { count: 'exact', head: true }).eq('id_statut_actuel', 5);
-      const { count: termineesCount } = await supabase.from('reparations').select('*', { count: 'exact', head: true }).in('id_statut_actuel', [6, 8]);
-      setStats({ total: totalCount || 0, enCours: enCoursCount || 0, terminees: termineesCount || 0 });
-
       const { data: techs } = await supabase.from('employes').select('id_employe, nom, prenom').eq('role', 'Technicien').eq('id_boutique', userData.id_boutique);
       setTechniciens(techs || []);
 
@@ -104,6 +116,31 @@ export default function ManagerDashboard() {
     doc.save(`Ticket_Depot_${numeroSuivi}.pdf`);
   };
 
+  // --- EMAIL DE CONFIRMATION (EmailJS) ---
+  // Non bloquant : un échec d'envoi n'annule jamais la création du ticket (déjà réussie en base à ce stade).
+  const sendConfirmationEmail = async (clientInfo, numeroSuivi) => {
+    const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID;
+    const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
+    const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
+
+    if (!serviceId || !templateId || !publicKey) {
+      console.warn("EmailJS non configuré (variables VITE_EMAILJS_* manquantes) : email de confirmation non envoyé.");
+      return;
+    }
+
+    try {
+      await emailjs.send(serviceId, templateId, {
+        to_email: clientInfo.email,
+        to_name: `${clientInfo.prenom} ${clientInfo.nom}`,
+        tracking_number: numeroSuivi,
+        device: `${clientInfo.marque} ${clientInfo.modele}`,
+        description: clientInfo.description,
+      }, publicKey);
+    } catch (error) {
+      console.error("Erreur lors de l'envoi de l'email de confirmation :", error);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault(); setIsSubmitting(true); const submittedData = { ...formData }; 
     try {
@@ -121,6 +158,7 @@ export default function ManagerDashboard() {
       if (repErr) throw repErr;
 
       setIsModalOpen(false);
+      sendConfirmationEmail(submittedData, numeroSuivi);
       Swal.fire({ title: 'Ticket Créé !', html: `Numéro :<br><b style="font-size: 1.5rem; color: #2563eb;">${numeroSuivi}</b>`, icon: 'success', showCancelButton: true, confirmButtonColor: '#10b981', cancelButtonColor: '#3b82f6', confirmButtonText: 'Terminer', cancelButtonText: '📄 Télécharger le reçu' }).then((result) => {
         if (result.dismiss === Swal.DismissReason.cancel) generateDepositPDF(submittedData, numeroSuivi);
       });
@@ -230,11 +268,19 @@ export default function ManagerDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 lg:col-span-2">
           <h2 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2"><FiTrendingUp className="text-blue-500" /> Évolution</h2>
-          <div className="h-72 w-full"><ResponsiveContainer width="100%" height="100%"><AreaChart data={evolutionData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}><defs><linearGradient id="colorRep" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/><stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" /><XAxis dataKey="mois" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} dy={10} /><YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} /><RechartsTooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}/><Area type="monotone" dataKey="reparations" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorRep)" /></AreaChart></ResponsiveContainer></div>
+          {reparationsList.length === 0 ? (
+            <div className="h-72 w-full flex items-center justify-center text-slate-400 font-medium text-sm border-2 border-dashed border-slate-200 rounded-xl">Pas encore de données</div>
+          ) : (
+            <div className="h-72 w-full"><ResponsiveContainer width="100%" height="100%"><AreaChart data={evolutionData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}><defs><linearGradient id="colorRep" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/><stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" /><XAxis dataKey="mois" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} dy={10} /><YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} allowDecimals={false} /><RechartsTooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}/><Area type="monotone" dataKey="reparations" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorRep)" /></AreaChart></ResponsiveContainer></div>
+          )}
         </div>
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
           <h2 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2"><FiPieChart className="text-indigo-500" /> Répartition</h2>
-          <div className="h-72 w-full"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={statusData} cx="50%" cy="45%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">{statusData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}</Pie><RechartsTooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}/><Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '12px', color: '#475569' }} /></PieChart></ResponsiveContainer></div>
+          {statusData.length === 0 ? (
+            <div className="h-72 w-full flex items-center justify-center text-slate-400 font-medium text-sm border-2 border-dashed border-slate-200 rounded-xl">Pas encore de données</div>
+          ) : (
+            <div className="h-72 w-full"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={statusData} cx="50%" cy="45%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">{statusData.map((entry) => <Cell key={entry.idStatut} fill={STATUS_COLORS[entry.idStatut] || '#94a3b8'} />)}</Pie><RechartsTooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}/><Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '12px', color: '#475569' }} /></PieChart></ResponsiveContainer></div>
+          )}
         </div>
       </div>
 

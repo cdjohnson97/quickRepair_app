@@ -7,9 +7,6 @@ import ManagerDashboard from './pages/manager/ManagerDashboard';
 import AdminDashboard from './pages/admin/AdminDashboard'; // À ajouter en haut
 import TechDashboard from './pages/technicien/TechDashboard';
 import ClientTracking from './pages/client/ClientTracking';
-// --- Composants temporaires ---
-const ClientDashboard = () => <div className="p-10 text-center text-2xl text-blue-600 font-bold">Espace Client</div>;
-// const ManagerDashboard = () => <div className="p-10 text-center text-2xl text-purple-600 font-bold">Espace Manager</div>;
 
 // --- Barre de navigation ---
 // --- Barre de navigation ---
@@ -18,7 +15,7 @@ const NavBar = () => {
   // NOUVEAU : On récupère userData depuis le contexte
   const { role, userData } = useAuth(); 
 
-  if (location.pathname === '/login' || location.pathname === '/') return null;
+  if (location.pathname === '/login' || location.pathname === '/' || location.pathname === '/client') return null;
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -70,12 +67,7 @@ function App() {
           path="/admin/*" 
           element={<ProtectedRoute allowedRoles={['Administrateur']}><AdminDashboard /></ProtectedRoute>} 
         />
-        <Route 
-              path="/client/*" 
-              element={<ProtectedRoute allowedRoles={['Client']}><ClientDashboard /></ProtectedRoute>} 
-            />
-            
-            <Route 
+        <Route
               path="/technicien/*" 
               element={<ProtectedRoute allowedRoles={['Technicien', 'Responsable']}><TechDashboard /></ProtectedRoute>} 
             />

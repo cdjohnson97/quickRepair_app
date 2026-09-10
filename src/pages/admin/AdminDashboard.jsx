@@ -152,7 +152,7 @@ export default function AdminDashboard() {
             className="w-1/3 bg-white border-l border-slate-200 shadow-xl overflow-y-auto z-10 flex flex-col"
           >
             <div className="p-6 bg-slate-50 border-b border-slate-200 relative">
-              <button onClick={() => setSelectedRep(null)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition" onClick={() => setSelectedBoutique(null)}><FiX size={20} /></button>
+              <button onClick={() => setSelectedBoutique(null)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition"><FiX size={20} /></button>
               <h2 className="text-xl font-bold text-slate-800">{selectedBoutique.nom}</h2>
               <p className="text-xs text-slate-500 flex items-center gap-1 mt-1"><FiMapPin /> {selectedBoutique.ville}</p>
             </div>
