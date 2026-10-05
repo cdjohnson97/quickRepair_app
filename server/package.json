@@ -19,7 +19,9 @@
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
     "test:debug": "vitest --inspect-brk --no-file-parallelism",
-    "test:e2e": "vitest run --config ./vitest.config.e2e.ts"
+    "test:e2e": "vitest run --config ./vitest.config.e2e.ts",
+    "env:encrypt": "node scripts/env.mjs encrypt",
+    "env:decrypt": "node scripts/env.mjs decrypt"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",
@@ -42,6 +44,7 @@
     "socket.io": "^4.8.3"
   },
   "devDependencies": {
+    "@dotenvx/dotenvx": "^2.32.4",
     "@nestjs/cli": "^12.0.0",
     "@nestjs/mau": "^0.2.6",
     "@nestjs/schematics": "^12.0.0",
