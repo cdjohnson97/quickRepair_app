@@ -7,7 +7,7 @@ export default function ProtectedRoute({ children, allowedRoles }) {
   // 1. Pendant qu'on vérifie l'identité, on affiche un petit chargement
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
     );

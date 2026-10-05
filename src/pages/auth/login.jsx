@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../../supabaseClient'; 
+import { supabase } from '../../supabaseClient';
+import { apiClient, setApiToken } from '../../apiClient';
 
 // Importation des icônes corrigées (FiSmartphone remplace FiLaptop)
 import { FiPhone, FiSmartphone, FiBatteryCharging, FiTablet, FiMonitor, FiTool } from 'react-icons/fi';
@@ -28,6 +29,17 @@ export default function Login() {
       if (authError) throw authError;
 
       const userEmail = authData.user.email;
+
+      // 1bis. Récupère un JWT du backend NestJS (module Réparations) — même mot de
+      // passe, vérifié côté serveur contre le même hash bcrypt Supabase. Non bloquant :
+      // si le backend est indisponible, l'app continue de fonctionner sur Supabase seul
+      // (messagerie/présence/calendrier), seul le module Réparations serait affecté.
+      try {
+        const { data: apiAuth } = await apiClient.post('/auth/login', { email, password });
+        setApiToken(apiAuth.access_token);
+      } catch (apiErr) {
+        console.error("Connexion au backend Réparations impossible :", apiErr.message);
+      }
 
       // 2. Vérification du rôle dans notre table "employes"
       // 2. Vérification du rôle dans notre table "employes"
@@ -61,11 +73,11 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-100 px-4 relative overflow-hidden">
-      
+    <div className="min-h-screen flex items-center justify-center bg-slate-100 dark:bg-slate-950 px-4 relative overflow-hidden">
+
       {/* ------------------------------------------------------------ */}
       {/* Motif d'arrière-plan (Watermark Moderne) */}
-      <div className="absolute inset-0 z-0 opacity-[0.03] text-slate-900 pointer-events-none grid grid-cols-4 md:grid-cols-6 gap-16 p-12 lg:grid-cols-8">
+      <div className="absolute inset-0 z-0 opacity-[0.03] dark:opacity-[0.06] text-slate-900 dark:text-white pointer-events-none grid grid-cols-4 md:grid-cols-6 gap-16 p-12 lg:grid-cols-8">
         <FiPhone className="text-9xl -rotate-12" />
         <FiSmartphone className="text-8xl rotate-12 col-start-2 row-start-2" />
         <FiBatteryCharging className="text-9xl rotate-45 col-start-4 row-start-1" />
@@ -80,7 +92,7 @@ export default function Login() {
       {/* ------------------------------------------------------------ */}
 
       {/* Carte de login par-dessus le motif (z-10) */}
-      <div className="max-w-md w-full bg-white rounded-2xl shadow-xl overflow-hidden relative z-10 border border-slate-200/50">
+      <div className="max-w-md w-full bg-white dark:bg-slate-800 rounded-2xl shadow-xl overflow-hidden relative z-10 border border-slate-200/50 dark:border-slate-700">
         
         {/* En-tête de la carte */}
         <div className="bg-blue-600 p-8 text-center">
@@ -91,14 +103,14 @@ export default function Login() {
         {/* Formulaire */}
         <div className="p-8">
           {error && (
-            <div className="bg-red-50 text-red-600 p-4 rounded-lg text-sm mb-6 border border-red-200">
+            <div className="bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-300 p-4 rounded-lg text-sm mb-6 border border-red-200 dark:border-red-800">
               <span className="font-bold">Erreur : </span>{error}
             </div>
           )}
 
           <form onSubmit={handleLogin} className="space-y-6">
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-1.5">
                 Adresse Email
               </label>
               <div className="relative">
@@ -110,14 +122,14 @@ export default function Login() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-slate-50"
+                  className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-slate-50 dark:bg-slate-900 dark:text-slate-100"
                   placeholder="jean.dupont@email.com"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-1.5">
                 Mot de passe
               </label>
               <div className="relative">
@@ -129,7 +141,7 @@ export default function Login() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-slate-50"
+                  className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-slate-50 dark:bg-slate-900 dark:text-slate-100"
                   placeholder="••••••••"
                 />
               </div>
@@ -146,7 +158,7 @@ export default function Login() {
             </button>
           </form>
           
-          <div className="mt-8 text-center text-xs text-gray-400 border-t pt-6">
+          <div className="mt-8 text-center text-xs text-gray-400 dark:text-slate-500 border-t dark:border-slate-700 pt-6">
             © {new Date().getFullYear()} QuickRepair S.A.S. - Besoin d'aide ? Contactez l'administrateur.
           </div>
         </div>

@@ -30,3 +30,10 @@ __pycache__/
 *.njsproj
 *.sln
 *.sw?
+
+# Fichiers générés / locaux
+server/coverage/
+*.tsbuildinfo
+supabase/.temp/
+.claude/settings.local.json
+mobile/.claude/

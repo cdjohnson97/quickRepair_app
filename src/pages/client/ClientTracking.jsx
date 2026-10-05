@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { supabase } from '../../supabaseClient';
+import { apiClient } from '../../apiClient';
 import { FiSearch, FiSmartphone, FiCheckCircle, FiClock, FiAlertCircle, FiMessageSquare, FiLoader, FiCheck } from 'react-icons/fi';
 import { motion, AnimatePresence } from 'framer-motion';
 import Swal from 'sweetalert2';
@@ -46,18 +46,11 @@ export default function ClientTracking() {
     try {
       await new Promise(resolve => setTimeout(resolve, 1500)); // Animation de scan
 
-      const { data: repData, error: repError } = await supabase
-        .from('reparations')
-        .select(`
-          id_reparation, numero_suivi, id_statut_actuel,
-          statuts ( libelle ),
-          appareils ( marque, modele, clients ( nom, prenom ) ),
-          factures ( numero_facture, montant_total, mode_paiement, date_emission )
-        `)
-        .ilike('numero_suivi', trackingNumber.trim())
-        .maybeSingle();
-
-      if (repError || !repData) throw new Error("Numéro de suivi introuvable.");
+      // Recherche publique servie par le backend NestJS (module Réparations) — pas de
+      // session requise, comme l'ancienne requête Supabase directe.
+      const { historique_statuts, ...repData } = (
+        await apiClient.get(`/reparations/track/${encodeURIComponent(trackingNumber.trim())}`)
+      ).data;
 
       setRepairData(repData);
 
@@ -78,34 +71,28 @@ export default function ClientTracking() {
         });
       }
 
-      const { data: histData } = await supabase
-        .from('historique_statuts')
-        .select('*, statuts(libelle)')
-        .eq('id_reparation', repData.id_reparation)
-        .order('date_changement', { ascending: false });
-
-      setHistory(histData || []);
+      setHistory(historique_statuts || []);
     } catch (err) {
-      setError(err.message);
+      setError(err.response?.data?.message || err.message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-[calc(100vh-76px)] bg-slate-50 flex flex-col items-center py-12 px-4 font-sans">
+    <div className="min-h-[calc(100vh-76px)] bg-slate-50 dark:bg-slate-950 flex flex-col items-center py-12 px-4 font-sans">
       
       {/* --- Section Recherche --- */}
       <div className="max-w-xl w-full text-center mb-12">
-        <motion.h1 initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="text-4xl font-extrabold text-slate-800 mb-4 tracking-tight">
+        <motion.h1 initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="text-4xl font-extrabold text-slate-800 dark:text-slate-100 mb-4 tracking-tight">
           Où en est mon appareil ?
         </motion.h1>
-        <form onSubmit={handleSearch} className="relative flex items-center shadow-xl rounded-2xl overflow-hidden bg-white border border-slate-200 focus-within:ring-2 focus-within:ring-blue-500 transition-all">
+        <form onSubmit={handleSearch} className="relative flex items-center shadow-xl rounded-2xl overflow-hidden bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus-within:ring-2 focus-within:ring-blue-500 transition-all">
           <div className="pl-6 text-slate-400"><FiSearch /></div>
           <input
             type="text"
             placeholder="Entrez votre N° de suivi (ex: QR-12345)"
-            className="w-full py-5 pl-4 pr-32 text-lg text-slate-800 outline-none uppercase font-bold"
+            className="w-full py-5 pl-4 pr-32 text-lg text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800 outline-none uppercase font-bold"
             value={trackingNumber}
             onChange={(e) => setTrackingNumber(e.target.value.toUpperCase())}
           />
@@ -128,17 +115,17 @@ export default function ClientTracking() {
           <motion.div key="results" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-4xl">
             
             {/* --- Résumé de l'appareil --- */}
-            <div className="bg-white rounded-3xl shadow-lg border border-slate-100 p-8 mb-8 flex flex-col md:flex-row justify-between items-center gap-6 relative overflow-hidden">
+            <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-lg border border-slate-100 dark:border-slate-700 p-8 mb-8 flex flex-col md:flex-row justify-between items-center gap-6 relative overflow-hidden">
                <div className="absolute top-0 right-0 p-4 bg-blue-600 text-white font-mono text-xs rounded-bl-2xl">
                  SUIVI OFFICIEL
                </div>
                <div className="flex items-center gap-6">
-                 <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-3xl flex items-center justify-center border border-blue-100 shadow-inner">
+                 <div className="w-20 h-20 bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 rounded-3xl flex items-center justify-center border border-blue-100 dark:border-blue-800 shadow-inner">
                    <FiSmartphone className="text-4xl" />
                  </div>
                  <div>
-                   <h2 className="text-3xl font-black text-slate-800 uppercase italic leading-none">{repairData.appareils.marque}</h2>
-                   <p className="text-xl font-bold text-slate-500">{repairData.appareils.modele}</p>
+                   <h2 className="text-3xl font-black text-slate-800 dark:text-slate-100 uppercase italic leading-none">{repairData.appareils.marque}</h2>
+                   <p className="text-xl font-bold text-slate-500 dark:text-slate-400">{repairData.appareils.modele}</p>
                    <p className="text-sm font-mono text-blue-600 mt-2">Ticket ID: {repairData.numero_suivi}</p>
                  </div>
                </div>
@@ -151,14 +138,14 @@ export default function ClientTracking() {
             </div>
 
             {/* --- LA TIMELINE (ANCIENNE INTERFACE) --- */}
-            <div className="bg-white rounded-3xl shadow-lg border border-slate-100 p-8 md:p-12 relative">
-              <h3 className="text-2xl font-black text-slate-800 mb-10 flex items-center gap-3">
+            <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-lg border border-slate-100 dark:border-slate-700 p-8 md:p-12 relative">
+              <h3 className="text-2xl font-black text-slate-800 dark:text-slate-100 mb-10 flex items-center gap-3">
                 <FiClock className="text-blue-600" /> PARCOURS DE RÉPARATION
               </h3>
 
               <div className="relative">
                 {/* Ligne verticale de fond */}
-                <div className="absolute left-[19px] top-2 bottom-2 w-1 bg-slate-100 rounded-full"></div>
+                <div className="absolute left-[19px] top-2 bottom-2 w-1 bg-slate-100 dark:bg-slate-700 rounded-full"></div>
 
                 <div className="space-y-12">
                   {history.map((hist, index) => (
@@ -175,7 +162,7 @@ export default function ClientTracking() {
                       </div>
 
                       {/* Le contenu de l'étape */}
-                      <div className={`p-6 rounded-2xl border-2 transition-all ${index === 0 ? 'bg-blue-50/30 border-blue-200 shadow-blue-100 shadow-lg' : 'bg-slate-50 border-slate-100 opacity-80'}`}>
+                      <div className={`p-6 rounded-2xl border-2 transition-all ${index === 0 ? 'bg-blue-50/30 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 shadow-blue-100 dark:shadow-none shadow-lg' : 'bg-slate-50 dark:bg-slate-900/40 border-slate-100 dark:border-slate-700 opacity-80'}`}>
                         <div className="flex flex-col md:flex-row justify-between md:items-center gap-2 mb-3">
                           <span className={`px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-wide border ${getStatusBadgeColor(hist.id_statut)}`}>
                             {hist.statuts.libelle}
@@ -186,7 +173,7 @@ export default function ClientTracking() {
                         </div>
                         
                         {hist.commentaire ? (
-                          <div className="mt-4 p-4 bg-white rounded-xl border border-slate-200 shadow-inner italic text-slate-600 text-sm flex gap-3">
+                          <div className="mt-4 p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-inner italic text-slate-600 dark:text-slate-300 text-sm flex gap-3">
                             <FiMessageSquare className="text-blue-400 shrink-0 mt-1" />
                             <span>"{hist.commentaire}"</span>
                           </div>
@@ -201,10 +188,10 @@ export default function ClientTracking() {
 
               {/* Message de fin si livré */}
               {repairData.id_statut_actuel === 8 && (
-                <div className="mt-12 p-6 bg-emerald-50 border-2 border-dashed border-emerald-200 rounded-3xl text-center">
+                <div className="mt-12 p-6 bg-emerald-50 dark:bg-emerald-900/20 border-2 border-dashed border-emerald-200 dark:border-emerald-700 rounded-3xl text-center">
                   <FiCheckCircle className="text-5xl text-emerald-500 mx-auto mb-3" />
-                  <p className="text-emerald-800 font-black uppercase">Dossier clôturé avec succès</p>
-                  <p className="text-emerald-600 text-sm mt-1 font-medium">L'appareil a été restitué au client.</p>
+                  <p className="text-emerald-800 dark:text-emerald-300 font-black uppercase">Dossier clôturé avec succès</p>
+                  <p className="text-emerald-600 dark:text-emerald-400 text-sm mt-1 font-medium">L'appareil a été restitué au client.</p>
                 </div>
               )}
             </div>

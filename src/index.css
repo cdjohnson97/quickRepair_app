@@ -4,6 +4,83 @@
 @tailwind components;
 @tailwind utilities;
 
+/* SweetAlert2 doit toujours passer au-dessus de nos modales (certaines sont en z-[2000]/z-[3000]) */
+.swal2-container {
+  z-index: 9999 !important;
+}
+
+/* Thème sombre pour les popups SweetAlert2 (n'ont pas de classes Tailwind, on les cible directement) */
+html.dark .swal2-popup {
+  background: #1e293b;
+  color: #e2e8f0;
+}
+html.dark .swal2-title,
+html.dark .swal2-html-container {
+  color: #e2e8f0;
+}
+html.dark .swal2-input,
+html.dark .swal2-textarea {
+  background: #0f172a;
+  color: #e2e8f0;
+  border-color: #475569;
+}
+html.dark .swal2-close {
+  color: #94a3b8;
+}
+html.dark .swal2-timer-progress-bar {
+  background: rgba(226, 232, 240, 0.4);
+}
+
+/* Toast de notification de message : avatar + texte côte à côte (contenu entièrement
+   construit via `html`, voir src/utils/messageToast.js) */
+.swal2-toast.qr-message-toast {
+  padding: 0.65rem 0.9rem;
+  border-radius: 14px;
+  box-shadow: 0 8px 24px -6px rgba(15, 23, 42, 0.25);
+}
+.qr-message-toast .swal2-html-container {
+  margin: 0 !important;
+}
+.qr-toast-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+.qr-toast-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 9999px;
+  object-fit: cover;
+  border: 2px solid #3b82f6;
+  flex-shrink: 0;
+}
+.qr-toast-avatar-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #3b82f6;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+.qr-toast-text {
+  text-align: left;
+}
+.qr-toast-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  margin: 0 0 2px;
+  color: inherit;
+}
+.qr-toast-body {
+  font-size: 0.8rem;
+  margin: 0;
+  color: inherit;
+}
+html.dark .swal2-toast.qr-message-toast {
+  box-shadow: 0 8px 24px -6px rgba(0, 0, 0, 0.5);
+}
+
 /* Supprimez tout le reste s'il y en a ! */
 
 

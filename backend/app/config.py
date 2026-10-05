@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     app_env: str = "development"
-    cors_origins: str = "http://localhost:5173"
+    cors_origins: str = "http://localhost:5173,http://localhost:3000"
     redis_url: str = "redis://localhost:6379/0"
     realtime_channel: str = "quickrepair:repair-events"
     supabase_url: str | None = None
