@@ -1,5 +1,7 @@
 # QuickRepair
 
+> **Nouveau PC ?** Tout est expliqué dans [INSTALLATION.md](INSTALLATION.md) (installation, secrets, lancement du front, du serveur NestJS et du mobile).
+
 Application de suivi de réparations : front React/Vite et API FastAPI en cours de migration.
 
 ## Backend FastAPI local
