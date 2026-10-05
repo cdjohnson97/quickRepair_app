@@ -565,6 +565,8 @@ Hiérarchie : **Technicien**, **Responsable** et **Administrateur** héritent d'
 
 ### 5.3 Diagramme de cas d'utilisation (PlantUML)
 
+> Fichier source : [diagrams/cas-utilisation.puml](diagrams/cas-utilisation.puml) (aperçu dans VS Code avec l'extension « PlantUML »).
+
 ```plantuml
 @startuml UseCase_QuickRepair
 left to right direction

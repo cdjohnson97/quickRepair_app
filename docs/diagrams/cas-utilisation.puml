@@ -1,0 +1,73 @@
+@startuml UseCase_QuickRepair
+left to right direction
+skinparam packageStyle rectangle
+
+actor "Client" as Client
+actor "Employé" as Employe
+actor "Technicien" as Tech
+actor "Responsable" as Resp
+actor "Administrateur" as Admin
+actor "Service e-mail\n(EmailJS)" as Mail <<système>>
+actor "Notifications\n(Expo Push)" as Push <<système>>
+
+Tech -up-|> Employe
+Resp -up-|> Employe
+Admin -up-|> Employe
+
+rectangle "QuickRepair" {
+  usecase "Suivre une réparation\npar numéro de suivi" as UC_Suivi
+  usecase "Consulter l'historique\ndes statuts" as UC_HistoClient
+  usecase "Télécharger la facture" as UC_DlFacture
+
+  usecase "S'authentifier" as UC_Auth
+  usecase "Gérer son profil" as UC_Profil
+  usecase "Échanger des messages" as UC_Msg
+  usecase "Gérer son calendrier" as UC_Cal
+
+  usecase "Consulter ses\nréparations assignées" as UC_MesRep
+  usecase "Mettre à jour le statut\n(avec commentaire)" as UC_Statut
+
+  usecase "Créer un ticket\nde réparation" as UC_Ticket
+  usecase "Assigner un technicien" as UC_Assigner
+  usecase "Générer le bon de\ndépôt signé (PDF)" as UC_Bon
+  usecase "Envoyer l'e-mail\nde confirmation" as UC_Mail
+  usecase "Émettre une facture" as UC_Facture
+  usecase "Consulter le\ntableau de bord" as UC_Dash
+  usecase "Gérer l'équipe et\nses disponibilités" as UC_Equipe
+  usecase "Réinitialiser le mot de\npasse d'un technicien" as UC_Reset
+
+  usecase "Gérer les boutiques" as UC_Boutique
+  usecase "Géolocaliser l'adresse" as UC_Geo
+  usecase "Gérer les employés" as UC_Employes
+}
+
+Client --> UC_Suivi
+UC_HistoClient .> UC_Suivi : <<extend>>
+UC_DlFacture .> UC_Suivi : <<extend>>
+
+Employe --> UC_Profil
+Employe --> UC_Msg
+Employe --> UC_Cal
+UC_Profil ..> UC_Auth : <<include>>
+UC_Msg ..> UC_Auth : <<include>>
+UC_Cal ..> UC_Auth : <<include>>
+
+Tech --> UC_MesRep
+Tech --> UC_Statut
+UC_Statut ..> UC_Auth : <<include>>
+
+Resp --> UC_Ticket
+Resp --> UC_Facture
+Resp --> UC_Dash
+Resp --> UC_Equipe
+Resp --> UC_Reset
+UC_Ticket ..> UC_Assigner : <<include>>
+UC_Bon .> UC_Ticket : <<extend>>
+UC_Mail .> UC_Ticket : <<extend>>
+UC_Mail --> Mail
+UC_Assigner --> Push
+
+Admin --> UC_Boutique
+Admin --> UC_Employes
+UC_Boutique ..> UC_Geo : <<include>>
+@enduml
