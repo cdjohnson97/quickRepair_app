@@ -4,6 +4,8 @@ L'utilisateur parle français : répondre en français.
 
 Installation, lancement, secrets et organisation du projet : voir @INSTALLATION.md (à suivre en priorité si l'utilisateur arrive sur un nouveau PC).
 
+Objectif en cours : préparer le titre professionnel CDA (Concepteur Développeur d'Applications) avec ce projet. Plan d'action et avancement : voir @TODO.md (le mettre à jour en cochant les tâches terminées). Dossier de conception : `docs/conception.md`.
+
 ## Périmètre
 - Projets actifs : front React (racine, `src/`), serveur NestJS (`server/`), mobile Expo (`mobile/`, voir aussi `mobile/CLAUDE.md`).
 - `backend/` (FastAPI) et `MIGRATION_BACKEND.md` : ancienne piste, ne pas y toucher sauf demande explicite.
