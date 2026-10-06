@@ -96,7 +96,7 @@ export default function Login() {
         
         {/* En-tête de la carte */}
         <div className="bg-blue-600 p-8 text-center">
-          <h2 className="text-4xl font-extrabold text-white tracking-tight">QuickRepair</h2>
+          <h2 className="text-4xl font-extrabold text-white tracking-tight">FiXeo</h2>
           <p className="text-blue-100 mt-2 font-medium">Portail de connexion sécurisé</p>
         </div>
 
@@ -159,7 +159,7 @@ export default function Login() {
           </form>
           
           <div className="mt-8 text-center text-xs text-gray-400 dark:text-slate-500 border-t dark:border-slate-700 pt-6">
-            © {new Date().getFullYear()} QuickRepair S.A.S. - Besoin d'aide ? Contactez l'administrateur.
+            © {new Date().getFullYear()} FiXeo S.A.S. - Besoin d'aide ? Contactez l'administrateur.
           </div>
         </div>
       </div>

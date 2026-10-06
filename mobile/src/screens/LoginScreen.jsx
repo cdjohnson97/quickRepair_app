@@ -4,7 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Feather } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 
-// Port visuel de src/pages/auth/login.jsx (web) : bandeau bleu "QuickRepair" sur la
+// Port visuel de src/pages/auth/login.jsx (web) : bandeau bleu "FiXeo" sur la
 // carte, champs avec icône, watermark décoratif d'icônes réparation en fond — adapté
 // en dégradés (expo-linear-gradient) plutôt qu'en Tailwind/DOM.
 export default function LoginScreen() {
@@ -47,7 +47,7 @@ export default function LoginScreen() {
               <View className="bg-white/15 w-16 h-16 rounded-2xl items-center justify-center mb-3">
                 <Feather name="tool" size={28} color="#fff" />
               </View>
-              <Text className="text-3xl font-extrabold text-white tracking-tight">QuickRepair</Text>
+              <Text className="text-3xl font-extrabold text-white tracking-tight">FiXeo</Text>
               <Text className="text-blue-100 mt-1 text-sm font-medium">Portail de connexion sécurisé</Text>
             </LinearGradient>
 
@@ -60,7 +60,7 @@ export default function LoginScreen() {
                   onChangeText={setEmail}
                   autoCapitalize="none"
                   keyboardType="email-address"
-                  placeholder="vous@quickrepair.fr"
+                  placeholder="vous@fixeo.fr"
                   placeholderTextColor="#94a3b8"
                   className="flex-1 px-2 py-3 text-sm text-slate-800"
                 />
@@ -110,7 +110,7 @@ export default function LoginScreen() {
               </TouchableOpacity>
 
               <Text className="text-center text-[11px] text-slate-400 mt-6 pt-4 border-t border-slate-100">
-                © {new Date().getFullYear()} QuickRepair — Besoin d'aide ? Contactez l'administrateur.
+                © {new Date().getFullYear()} FiXeo — Besoin d'aide ? Contactez l'administrateur.
               </Text>
             </View>
           </View>

@@ -15,7 +15,7 @@ export function buildICS(events, calendarName) {
   const lines = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//QuickRepair//Calendrier//FR',
+    'PRODID:-//FiXeo//Calendrier//FR',
     'CALSCALE:GREGORIAN',
     `X-WR-CALNAME:${escapeICS(calendarName)}`
   ];

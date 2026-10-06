@@ -47,7 +47,7 @@ export default function InvoiceScreen({ route, navigation }) {
   const buildReceiptHtml = (numFacture, montantTTC, montantHT, tva, signature) => `
     <html>
       <body style="font-family: Helvetica, Arial, sans-serif; padding: 32px; color: #0f172a;">
-        <h1 style="color: #2563eb; margin-bottom: 0;">QuickRepair</h1>
+        <h1 style="color: #2563eb; margin-bottom: 0;">FiXeo</h1>
         <p style="color: #64748b; margin-top: 4px;">FACTURE ACQUITTÉE</p>
         <table style="width: 100%; margin-top: 24px; font-size: 13px;">
           <tr>

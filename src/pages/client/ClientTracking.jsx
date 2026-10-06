@@ -16,7 +16,7 @@ export default function ClientTracking() {
   // --- Fonction de génération de facture PDF ---
   const downloadInvoice = (rep, invoice) => {
     const doc = new jsPDF();
-    doc.setFontSize(22); doc.setTextColor(37, 99, 235); doc.text("QuickRepair", 20, 20);
+    doc.setFontSize(22); doc.setTextColor(37, 99, 235); doc.text("FiXeo", 20, 20);
     doc.setFontSize(12); doc.setTextColor(100); doc.text("FACTURE ACQUITTÉE", 20, 30);
     doc.setTextColor(0); doc.text(`Facture N° : ${invoice.numero_facture}`, 20, 45);
     doc.text(`Date d'émission : ${new Date(invoice.date_emission).toLocaleDateString('fr-FR')}`, 20, 52);
@@ -201,7 +201,7 @@ export default function ClientTracking() {
       </AnimatePresence>
 
       <footer className="mt-20 text-slate-400 text-sm font-bold opacity-50 uppercase tracking-widest">
-        QuickRepair System v2.0 — Excellence Technique
+        FiXeo System v2.0 — Excellence Technique
       </footer>
     </div>
   );

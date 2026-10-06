@@ -1,4 +1,4 @@
-# QuickRepair — Dossier de conception (MCD, MLD, cas d'utilisation)
+# FiXeo — Dossier de conception (MCD, MLD, cas d'utilisation)
 
 > Document établi à partir de la base de données réelle (Supabase / PostgreSQL, schéma `public`, 14 tables) et du code de l'application (front React, serveur NestJS, application mobile Expo).
 > Les schémas sont fournis en code **PlantUML** et **Mermaid** pour être transformés en images (voir la section 6).
@@ -7,7 +7,7 @@
 
 ## 1. Présentation du système
 
-QuickRepair est une application de gestion d'un réseau de boutiques de réparation d'appareils (smartphones, ordinateurs, tablettes…). Elle couvre :
+FiXeo est une application de gestion d'un réseau de boutiques de réparation d'appareils (smartphones, ordinateurs, tablettes…). Elle couvre :
 
 - la **prise en charge** d'un appareil en boutique (client, appareil, panne, technicien assigné, bon de dépôt signé) ;
 - le **suivi de la réparation** par statuts successifs, avec historique ;
@@ -95,7 +95,7 @@ Architecture : application web (React + Vite), application mobile (React Native 
 ### 3.3 Schéma du MCD (PlantUML)
 
 ```plantuml
-@startuml MCD_QuickRepair
+@startuml MCD_FiXeo
 skinparam linetype ortho
 hide circle
 hide methods
@@ -568,7 +568,7 @@ Hiérarchie : **Technicien**, **Responsable** et **Administrateur** héritent d'
 > Fichier source : [diagrams/cas-utilisation.puml](diagrams/cas-utilisation.puml) (aperçu dans VS Code avec l'extension « PlantUML »).
 
 ```plantuml
-@startuml UseCase_QuickRepair
+@startuml UseCase_FiXeo
 left to right direction
 skinparam packageStyle rectangle
 
@@ -584,7 +584,7 @@ Tech -up-|> Employe
 Resp -up-|> Employe
 Admin -up-|> Employe
 
-rectangle "QuickRepair" {
+rectangle "FiXeo" {
   usecase "Suivre une réparation\npar numéro de suivi" as UC_Suivi
   usecase "Consulter l'historique\ndes statuts" as UC_HistoClient
   usecase "Télécharger la facture" as UC_DlFacture

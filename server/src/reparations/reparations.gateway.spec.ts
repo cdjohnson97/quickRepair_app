@@ -27,7 +27,7 @@ describe('ReparationsGateway', () => {
   });
 
   describe('handleConnection', () => {
-    const payload = { sub: 7, email: 'tech@quickrepair.fr', role: 'Technicien', id_boutique: 3 };
+    const payload = { sub: 7, email: 'tech@fixeo.fr', role: 'Technicien', id_boutique: 3 };
 
     it('place un technicien authentifié dans sa room personnelle', async () => {
       const client = fakeClient(await jwt.signAsync(payload));

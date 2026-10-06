@@ -97,7 +97,7 @@ const NavBar = () => {
 
   return (
     <nav className="bg-slate-800 dark:bg-slate-950 text-white p-4 flex justify-between items-center shadow-md px-8 sticky top-0 z-50">
-      <div className="font-bold text-xl tracking-wider">QuickRepair</div>
+      <div className="font-bold text-xl tracking-wider">FiXeo</div>
 
       <div className="flex gap-6 items-center">
         {role === 'Client' && <span className="text-blue-300">Vue Client</span>}

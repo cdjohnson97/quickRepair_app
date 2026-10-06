@@ -14,13 +14,13 @@ async function invalidFields<T extends object>(cls: new () => T, payload: object
 }
 
 describe('LoginDto', () => {
-  const valid = { email: 'jean@quickrepair.fr', password: 'secret' };
+  const valid = { email: 'jean@fixeo.fr', password: 'secret' };
 
   it('accepte des identifiants bien formés', async () => {
     expect(await invalidFields(LoginDto, valid)).toEqual([]);
   });
 
-  it.each(['pas-un-email', '', 'jean@', '@quickrepair.fr'])("refuse l'email %j", async (email) => {
+  it.each(['pas-un-email', '', 'jean@', '@fixeo.fr'])("refuse l'email %j", async (email) => {
     expect(await invalidFields(LoginDto, { ...valid, email })).toEqual(['email']);
   });
 

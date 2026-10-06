@@ -566,7 +566,7 @@ export default function AdminDashboard() {
                   <input
                     required
                     type="email"
-                    placeholder="jean.dupont@quickrepair.fr"
+                    placeholder="jean.dupont@fixeo.fr"
                     className="w-full border dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded-lg p-2 outline-none focus:border-blue-500"
                     value={newUser.email}
                     onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
@@ -657,7 +657,7 @@ export default function AdminDashboard() {
                   <label className="block text-[11px] font-bold text-slate-400 mb-1 uppercase">Nom</label>
                   <input
                     required
-                    placeholder="QuickRepair - République"
+                    placeholder="FiXeo - République"
                     className="w-full border dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded-lg p-2 outline-none focus:border-blue-500"
                     value={newBoutique.nom}
                     onChange={(e) => setNewBoutique({ ...newBoutique, nom: e.target.value })}

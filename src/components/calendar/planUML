@@ -1,4 +1,4 @@
-@startuml UseCase_QuickRepair
+@startuml UseCase_FiXeo
 left to right direction
 skinparam packageStyle rectangle
 
@@ -14,7 +14,7 @@ Tech -up-|> Employe
 Resp -up-|> Employe
 Admin -up-|> Employe
 
-rectangle "QuickRepair" {
+rectangle "FiXeo" {
   usecase "Suivre une réparation\npar numéro de suivi" as UC_Suivi
   usecase "Consulter l'historique\ndes statuts" as UC_HistoClient
   usecase "Télécharger la facture" as UC_DlFacture

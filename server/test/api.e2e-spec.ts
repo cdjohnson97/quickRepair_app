@@ -31,7 +31,7 @@ describe('API (e2e)', () => {
   let gateway: { notifyRepairAssigned: ReturnType<typeof vi.fn> };
 
   const tokenFor = (role: Role, sub = 1, id_boutique: number | null = 3) =>
-    jwt.signAsync({ sub, email: `user${sub}@quickrepair.fr`, role, id_boutique });
+    jwt.signAsync({ sub, email: `user${sub}@fixeo.fr`, role, id_boutique });
 
   const bearer = async (role: Role, sub?: number, id_boutique?: number | null) =>
     `Bearer ${await tokenFor(role, sub, id_boutique)}`;
@@ -87,7 +87,7 @@ describe('API (e2e)', () => {
       id_employe: 7,
       nom: 'Dupont',
       prenom: 'Jean',
-      email: 'jean@quickrepair.fr',
+      email: 'jean@fixeo.fr',
       role: 'Technicien',
       id_boutique: 3,
       telephone: null,

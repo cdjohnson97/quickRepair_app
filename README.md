@@ -1,4 +1,4 @@
-# QuickRepair
+# FiXeo
 
 > **Nouveau PC ?** Tout est expliqué dans [INSTALLATION.md](INSTALLATION.md) (installation, secrets, lancement du front, du serveur NestJS et du mobile).
 

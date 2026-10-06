@@ -11,13 +11,13 @@ const EMPLOYE = {
   id_employe: 7,
   nom: 'Dupont',
   prenom: 'Jean',
-  email: 'jean@quickrepair.fr',
+  email: 'jean@fixeo.fr',
   role: 'Technicien',
   id_boutique: 3,
   telephone: null,
   avatar_url: null,
   last_seen: null,
-  boutiques: { nom: 'QuickRepair Lyon', ville: 'Lyon' }
+  boutiques: { nom: 'FiXeo Lyon', ville: 'Lyon' }
 };
 
 describe('AuthService', () => {
@@ -79,7 +79,7 @@ describe('AuthService', () => {
 
       expect(jwt.signAsync).toHaveBeenCalledWith({
         sub: 7,
-        email: 'jean@quickrepair.fr',
+        email: 'jean@fixeo.fr',
         role: 'Technicien',
         id_boutique: 3
       });

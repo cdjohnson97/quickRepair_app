@@ -38,7 +38,7 @@ export default function NewBoutiqueScreen({ navigation }) {
       <ScrollView contentContainerStyle={{ padding: 20 }}>
         <View className="bg-white rounded-2xl border border-slate-200 p-4">
           <Text className="text-xs font-semibold text-slate-500 mb-1">Nom</Text>
-          <TextInput placeholder="QuickRepair - République" value={form.nom} onChangeText={(v) => update('nom', v)} className="border border-slate-300 rounded-lg px-3 py-2.5 text-sm mb-3" />
+          <TextInput placeholder="FiXeo - République" value={form.nom} onChangeText={(v) => update('nom', v)} className="border border-slate-300 rounded-lg px-3 py-2.5 text-sm mb-3" />
 
           <View className="flex-row gap-2 mb-3">
             <View className="flex-1">

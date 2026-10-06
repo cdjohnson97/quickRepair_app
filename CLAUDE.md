@@ -1,4 +1,4 @@
-# QuickRepair — instructions pour Claude
+# FiXeo — instructions pour Claude
 
 L'utilisateur parle français : répondre en français.
 

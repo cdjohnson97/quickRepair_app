@@ -1,4 +1,4 @@
-# QuickRepair — Installer le projet sur un nouveau PC
+# FiXeo — Installer le projet sur un nouveau PC
 
 Ce guide permet de remettre tout le projet en route sur une machine neuve, sans rien connaître d'autre.
 
@@ -32,8 +32,8 @@ Vérifier : `node -v` et `git --version`.
 
 ```bash
 cd C:\Users\<toi>\Documents\code
-git clone https://github.com/cdjohnson97/quickRepair_app.git QuickRepair
-cd QuickRepair
+git clone https://github.com/cdjohnson97/quickRepair_app.git FiXeo
+cd FiXeo
 ```
 
 ## 3. Installer les dépendances (3 projets)
@@ -106,7 +106,7 @@ Le fichier chiffré devient inutilisable. On recrée tout :
 ## 8. Organisation du projet
 
 ```
-QuickRepair/
+FiXeo/
 ├── src/            Front web React 19 + Vite 7 + Tailwind 3
 ├── server/         API NestJS 12 + Prisma 6 (base Postgres Supabase) + Socket.io
 ├── mobile/         Appli Expo SDK 57 / React Native 0.86 + NativeWind

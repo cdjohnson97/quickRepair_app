@@ -5,14 +5,14 @@ import { createPrismaMock, PrismaMock } from '../../test/helpers/prisma-mock.js'
 
 const technicien = (sub = 7, id_boutique: number | null = 3): JwtPayload => ({
   sub,
-  email: `tech${sub}@quickrepair.fr`,
+  email: `tech${sub}@fixeo.fr`,
   role: 'Technicien',
   id_boutique
 });
 
 const responsable = (id_boutique: number | null = 3): JwtPayload => ({
   sub: 1,
-  email: 'manager@quickrepair.fr',
+  email: 'manager@fixeo.fr',
   role: 'Responsable',
   id_boutique
 });

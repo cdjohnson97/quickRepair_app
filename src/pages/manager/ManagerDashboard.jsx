@@ -368,7 +368,7 @@ export default function ManagerDashboard() {
   // --- PDF DE DÉPÔT ---
   const generateDepositPDF = (clientInfo, numeroSuivi) => {
     const doc = new jsPDF();
-    doc.setFontSize(22); doc.setTextColor(37, 99, 235); doc.text("QuickRepair", 20, 20);
+    doc.setFontSize(22); doc.setTextColor(37, 99, 235); doc.text("FiXeo", 20, 20);
     doc.setFontSize(12); doc.setTextColor(100); doc.text("TICKET DE PRISE EN CHARGE", 20, 30);
     doc.setTextColor(0); doc.text(`Date : ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'})}`, 20, 45);
     doc.text(`N° de Suivi :`, 20, 55); doc.setFontSize(16); doc.setTextColor(37, 99, 235); doc.text(numeroSuivi, 55, 55);
@@ -507,7 +507,7 @@ export default function ManagerDashboard() {
       fetchTeamEvents();
 
       const doc = new jsPDF();
-      doc.setFontSize(22); doc.setTextColor(37, 99, 235); doc.text("QuickRepair", 20, 20);
+      doc.setFontSize(22); doc.setTextColor(37, 99, 235); doc.text("FiXeo", 20, 20);
       doc.setFontSize(12); doc.setTextColor(100); doc.text("FACTURE ACQUITTÉE", 20, 30);
       doc.setTextColor(0); doc.text(`Facture N° : ${numFacture}`, 20, 45);
       doc.text(`Date : ${new Date().toLocaleDateString('fr-FR')}`, 20, 52);
