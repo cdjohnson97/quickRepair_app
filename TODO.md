@@ -10,7 +10,7 @@ Le projet doit obligatoirement couvrir 8 des 11 compétences (marquées \* ci-de
 
 | Bloc | Compétence | État |
 |---|---|---|
-| 1 | Installer et configurer son environnement de travail | 🟡 pas de conteneur pour NestJS |
+| 1 | Installer et configurer son environnement de travail | ✅ conteneurs Docker pour l'API et le front |
 | 1 | Développer des interfaces utilisateur\* | 🟡 pas de tests front, pas de maquettes, RGPD/RGAA quasi absents |
 | 1 | Développer des composants métier\* | ✅ NestJS, JWT, bcrypt, guards, validation, 112 tests unitaires |
 | 1 | Contribuer à la gestion d'un projet informatique\* | ❌ aucune trace de planification |
@@ -19,8 +19,8 @@ Le projet doit obligatoirement couvrir 8 des 11 compétences (marquées \* ci-de
 | 2 | Concevoir et mettre en place une BDD relationnelle\* | 🟡 MCD/MLD faits ; manque script SQL, base de test, confidentialité |
 | 2 | Développer des composants d'accès aux données SQL **et NoSQL**\* | ❌ aucun NoSQL dans les projets actifs |
 | 3 | Préparer et exécuter les plans de tests\* | 🟡 112 tests unitaires + 34 e2e ; pas de plan de tests écrit |
-| 3 | Préparer et documenter le déploiement | ❌ ni procédure, ni scripts, ni Dockerfile NestJS |
-| 3 | Contribuer à la mise en production (DevOps) | 🟡 outils qualité OK ; pas d'intégration continue |
+| 3 | Préparer et documenter le déploiement | 🟡 Docker + compose OK ; reste procédure et mise en ligne |
+| 3 | Contribuer à la mise en production (DevOps) | 🟡 CI GitHub Actions OK (lint, tests, build, images GHCR) ; reste le déploiement continu |
 
 ## Actions
 
@@ -37,12 +37,15 @@ Le projet doit obligatoirement couvrir 8 des 11 compétences (marquées \* ci-de
 - [ ] Tests unitaires et de sécurité associés.
 
 ### 3. Intégration continue
-- [ ] GitHub Actions : lint + tests + build pour `server/` et le front (`.github/workflows/ci.yml`).
+- [x] GitHub Actions : lint + tests + build pour `server/` et le front (`.github/workflows/ci.yml`). Images Docker publiées sur GHCR depuis `main`.
+- [ ] Ajouter le lint du front à la CI (après correction des 71 erreurs).
 - [ ] Interpréter et documenter les rapports de CI (captures pour le dossier).
 
 ### 4. Conteneurisation et déploiement
-- [ ] `server/Dockerfile` + `docker-compose.yml` (API NestJS, et service NoSQL).
-- [ ] Rédiger la procédure de déploiement et documenter les scripts.
+- [x] `server/Dockerfile`, `Dockerfile` (front nginx) + `docker-compose.yml` (API + front), testés en local.
+- [ ] Ajouter le service NoSQL au `docker-compose.yml` (voir action 2).
+- [ ] Alléger l'image API (801 Mo actuellement).
+- [ ] Rédiger la procédure de déploiement et documenter les scripts (Docker et CI déjà documentés dans `INSTALLATION.md`).
 - [ ] Déployer : API (Render / Railway…), front (Vercel / Netlify…).
 - [ ] Définir les environnements (dev / test / prod) et la procédure des tests d'intégration, système et d'acceptation.
 
