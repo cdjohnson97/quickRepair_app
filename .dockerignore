@@ -1,0 +1,15 @@
+# Contexte de build du front (racine) : on n'envoie que ce dont Vite a besoin.
+node_modules
+dist
+server
+mobile
+backend
+supabase
+docs
+.git
+.github
+.claude
+*.md
+.env
+.env.*
+!.env.example

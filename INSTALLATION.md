@@ -86,6 +86,28 @@ npm test        # ~112 tests doivent passer
 ```
 Puis ouvrir http://localhost:3000/api → doit afficher `Hello World!`.
 
+### Variante : lancer l'API et le front avec Docker
+Prérequis : **Docker Desktop** démarré, et `server/.env` recréé (section 4).
+```bash
+docker compose up --build -d   # construit et démarre les deux conteneurs
+docker compose ps              # état (l'API doit être "healthy")
+docker compose logs -f api     # logs de l'API
+docker compose down            # arrêter
+```
+- Front : http://localhost:8080 · API : http://localhost:3000/api
+- `server/Dockerfile` : image de l'API (multi-étapes, sans secrets dedans, utilisateur non root).
+- `Dockerfile` (racine) + `docker/nginx.conf` : front compilé par Vite, servi par nginx.
+- Le mobile ne passe pas par Docker (il se lance avec Expo).
+
+## 5 bis. Intégration continue (GitHub Actions)
+
+Fichier : `.github/workflows/ci.yml`. À chaque push et pull request :
+1. API : `npm ci` → `prisma generate` → lint (oxlint) → tests unitaires → tests d'intégration → build ;
+2. Front : `npm ci` → build ;
+3. Images Docker construites ; sur `main`, publiées sur GHCR : `ghcr.io/cdjohnson97/fixeo-api` et `ghcr.io/cdjohnson97/fixeo-web` (tags `latest` et `sha-…`).
+
+Résultats : onglet **Actions** du dépôt GitHub. L'URL publique de l'API utilisée par le front se règle dans **Settings → Secrets and variables → Actions → Variables** : `VITE_API_URL`.
+
 ## 6. Gérer les secrets au quotidien
 
 - Modifier une variable : éditer `server/.env`, puis `cd server && npm run env:encrypt`, puis commiter `server/.env.encrypted`.

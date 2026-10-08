@@ -1,0 +1,8 @@
+node_modules
+dist
+coverage
+*.tsbuildinfo
+# Secrets : jamais dans l'image (fournis au lancement via env_file / variables).
+.env
+.env.*
+!.env.example

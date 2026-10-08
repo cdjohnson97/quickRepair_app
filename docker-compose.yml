@@ -1,31 +1,35 @@
+# FiXeo — lancer l'API NestJS et le front web dans Docker.
+#   docker compose up --build -d     # démarrer
+#   docker compose logs -f api       # suivre les logs de l'API
+#   docker compose down              # arrêter
+# Prérequis : server/.env (npm run env:decrypt dans server/).
+# Front : http://localhost:8080 · API : http://localhost:3000/api
+# Ports déjà pris ? ex. PowerShell : $env:API_PORT=3001; docker compose up --build -d
+
+name: fixeo
+
 services:
   api:
-    build:
-      context: ./backend
+    build: ./server
+    image: fixeo-api
     env_file:
-      - ./backend/.env
+      - ./server/.env
     environment:
-      REDIS_URL: redis://redis:6379/0
+      PORT: 3000
+      CORS_ORIGIN: http://localhost:${WEB_PORT:-8080}
     ports:
-      - "8000:8000"
+      - "${API_PORT:-3000}:3000"
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      args:
+        VITE_API_URL: http://localhost:${API_PORT:-3000}/api
+    image: fixeo-web
+    ports:
+      - "${WEB_PORT:-8080}:80"
     depends_on:
-      redis:
+      api:
         condition: service_healthy
     restart: unless-stopped
-
-  redis:
-    image: redis:8-alpine
-    command: ["redis-server", "--appendonly", "yes"]
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis-data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-
-volumes:
-  redis-data:
