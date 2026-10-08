@@ -1,0 +1,70 @@
+# Blueprint Render — déploiement de FiXeo (API NestJS + front React).
+# Render déploie automatiquement après chaque push sur main, uniquement si la CI GitHub est verte.
+# Si Render attribue d'autres URL que *.onrender.com ci-dessous, mettre à jour CORS_ORIGIN et VITE_API_URL.
+
+services:
+  # API NestJS, construite depuis server/Dockerfile.
+  - type: web
+    name: fixeo-api
+    runtime: docker
+    plan: free
+    region: frankfurt # proche de la base Supabase (eu-central-1)
+    dockerfilePath: ./server/Dockerfile
+    dockerContext: ./server
+    healthCheckPath: /api
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - server/**
+    envVars:
+      - key: DATABASE_URL
+        sync: false # à saisir dans Render (même valeur que server/.env)
+      - key: JWT_SECRET
+        generateValue: true # secret aléatoire propre à la production
+      - key: JWT_EXPIRES_IN
+        value: 24h
+      - key: CORS_ORIGIN
+        value: https://fixeo-web.onrender.com
+
+  # Front React, compilé par Vite et servi comme site statique.
+  - type: web
+    name: fixeo-web
+    runtime: static
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - src/**
+        - public/**
+        - index.html
+        - package.json
+        - package-lock.json
+        - vite.config.js
+        - tailwind.config.js
+        - postcss.config.js
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: VITE_API_URL
+        value: https://fixeo-api.onrender.com/api
+      - key: VITE_EMAILJS_SERVICE_ID
+        sync: false
+      - key: VITE_EMAILJS_TEMPLATE_ID
+        sync: false
+      - key: VITE_EMAILJS_PUBLIC_KEY
+        sync: false

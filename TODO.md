@@ -45,8 +45,9 @@ Le projet doit obligatoirement couvrir 8 des 11 compétences (marquées \* ci-de
 - [x] `server/Dockerfile`, `Dockerfile` (front nginx) + `docker-compose.yml` (API + front), testés en local.
 - [ ] Ajouter le service NoSQL au `docker-compose.yml` (voir action 2).
 - [ ] Alléger l'image API (801 Mo actuellement).
-- [ ] Rédiger la procédure de déploiement et documenter les scripts (Docker et CI déjà documentés dans `INSTALLATION.md`).
-- [ ] Déployer : API (Render / Railway…), front (Vercel / Netlify…).
+- [x] Rédiger la procédure de déploiement : `docs/deploiement.md` (Render, CI/CD, variables, recette, rollback).
+- [x] Blueprint Render `render.yaml` : API (Docker) + front (statique), déploiement seulement si la CI est verte.
+- [ ] Créer le Blueprint sur render.com et faire la recette de production (voir `docs/deploiement.md` §3 et §5).
 - [ ] Définir les environnements (dev / test / prod) et la procédure des tests d'intégration, système et d'acceptation.
 
 ### 5. Analyse des besoins et maquettes
