@@ -1,4 +1,5 @@
 import Swal from 'sweetalert2';
+import { isUrgentMessage } from './overdueRepairs';
 
 function escapeHtml(str) {
   const div = document.createElement('div');
@@ -10,14 +11,16 @@ function escapeHtml(str) {
 // Construit en `html` plutôt que `title`/`text`/`imageUrl` car SweetAlert2 ne place l'image
 // qu'à côté du titre, pas du texte, ce qui donnait un rendu déséquilibré.
 // `onClick`, si fourni, est appelé quand l'utilisateur clique le toast (ex: ouvrir le fil concerné).
+// Un message d'urgence (voir utils/overdueRepairs.js) reste affiché plus longtemps, en rouge.
 export function fireMessageToast(sender, contenu, onClick) {
+  const urgent = isUrgentMessage(contenu);
   const Toast = Swal.mixin({
     toast: true,
     position: 'top-end',
     showConfirmButton: false,
-    timer: 5000,
+    timer: urgent ? 12000 : 5000,
     timerProgressBar: true,
-    customClass: { popup: 'qr-message-toast' },
+    customClass: { popup: urgent ? 'qr-message-toast qr-message-toast-urgent' : 'qr-message-toast' },
     didOpen: (toastEl) => {
       if (!onClick) return;
       toastEl.style.cursor = 'pointer';
@@ -38,7 +41,7 @@ export function fireMessageToast(sender, contenu, onClick) {
       <div class="qr-toast-row">
         ${avatarHtml}
         <div class="qr-toast-text">
-          <p class="qr-toast-title">Nouveau message 💬</p>
+          <p class="qr-toast-title">${urgent ? 'Message urgent ⚠️' : 'Nouveau message 💬'}</p>
           <p class="qr-toast-body">${name ? `<b>${escapeHtml(name)}</b> : ` : ''}${escapeHtml(contenu)}</p>
         </div>
       </div>

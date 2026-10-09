@@ -2,16 +2,24 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { FiAlertTriangle, FiCheckCircle, FiSend, FiX } from 'react-icons/fi';
 import Avatar from './Avatar';
-
-function formatDueDate(iso) {
-  return new Date(`${iso}T00:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
-}
+import { formatDueDate } from '../utils/overdueRepairs';
 
 // Alerte flottante (coin inférieur gauche) des réparations en retard ou à rendre aujourd'hui.
-// Toujours visible : un clic rouvre la liste, et « Prévenir » ouvre la conversation avec le
-// technicien en charge, message d'urgence prérempli.
+// Toujours visible : un clic rouvre la liste. Utilisée par le manager (« Prévenir » le technicien
+// en charge) et par le technicien (« Ouvrir » le dossier) : bouton d'action configurable.
 // `items` : [{ rep, due: 'AAAA-MM-JJ', daysLate }] (daysLate = 0 → échéance aujourd'hui).
-export default function OverdueRepairsWidget({ items, techniciens, open, onOpenChange, onWarn }) {
+export default function OverdueRepairsWidget({
+  items,
+  techniciens = [],
+  showTechnicien = true,
+  open,
+  onOpenChange,
+  onAction,
+  actionLabel = 'Prévenir',
+  actionIcon = FiSend,
+  canAct = (rep) => Boolean(rep.id_technicien)
+}) {
+  const ActionIcon = actionIcon;
   const lateCount = items.filter((item) => item.daysLate > 0).length;
   const todayCount = items.length - lateCount;
   const hasLate = lateCount > 0;
@@ -73,18 +81,20 @@ export default function OverdueRepairsWidget({ items, techniciens, open, onOpenC
 
                     <div className="mt-2 flex items-center justify-between gap-2">
                       <div className="flex min-w-0 items-center gap-2">
-                        <Avatar url={tech?.avatar_url} name={techName || '?'} size={24} />
+                        {showTechnicien && <Avatar url={tech?.avatar_url} name={techName || '?'} size={24} />}
                         <div className="min-w-0">
-                          <p className="truncate text-xs font-semibold text-slate-700 dark:text-slate-200">{techName || 'Non assigné'}</p>
+                          {showTechnicien && (
+                            <p className="truncate text-xs font-semibold text-slate-700 dark:text-slate-200">{techName || 'Non assigné'}</p>
+                          )}
                           <p className="text-[11px] text-slate-400">Échéance : {formatDueDate(due)}</p>
                         </div>
                       </div>
-                      {rep.id_technicien && (
+                      {canAct(rep) && (
                         <button
-                          onClick={() => onWarn(item)}
+                          onClick={() => onAction(item)}
                           className="flex shrink-0 items-center gap-1.5 rounded-lg bg-red-600 px-2.5 py-1.5 text-xs font-bold text-white transition hover:bg-red-700"
                         >
-                          <FiSend size={12} /> Prévenir
+                          <ActionIcon size={12} /> {actionLabel}
                         </button>
                       )}
                     </div>
