@@ -5,6 +5,7 @@ import { CreateReparationDto } from './dto/create-reparation.dto.js';
 import { UpdateStatusDto } from './dto/update-status.dto.js';
 import { CreateInvoiceDto } from './dto/create-invoice.dto.js';
 import { ReparationsGateway } from './reparations.gateway.js';
+import { PushService } from '../notifications/push.service.js';
 
 const REPARATION_SELECT = {
   id_reparation: true,
@@ -24,7 +25,8 @@ const REPARATION_SELECT = {
 export class ReparationsService {
   constructor(
     private prisma: PrismaService,
-    private gateway: ReparationsGateway
+    private gateway: ReparationsGateway,
+    private push: PushService
   ) {}
 
   async findAll(user: JwtPayload) {
@@ -129,6 +131,11 @@ export class ReparationsService {
     });
 
     this.gateway.notifyRepairAssigned(dto.idTechnicien, repair);
+    // Push mobile envoyé par le serveur (non attendu : n'échoue jamais et ne ralentit pas la réponse).
+    void this.push.notifyEmployee(dto.idTechnicien, 'Nouveau ticket assigné 🛠️', `Ticket ${repair.numero_suivi} vous a été assigné.`, {
+      type: 'repair',
+      repairId: repair.id_reparation
+    });
     return repair;
   }
 

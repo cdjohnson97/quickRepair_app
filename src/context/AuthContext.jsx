@@ -1,5 +1,7 @@
 import { createContext, useState, useEffect, useContext } from 'react';
 import { supabase } from '../supabaseClient';
+import { setApiToken } from '../apiClient';
+import { disconnectSocket } from '../socketClient';
 
 const AuthContext = createContext();
 
@@ -50,6 +52,10 @@ export const AuthProvider = ({ children }) => {
         setLoading(true);
         fetchUserRole(session.user);
       } else {
+        // Déconnexion : on coupe aussi la session API et le socket, sinon le socket resterait
+        // inscrit dans la room du compte précédent.
+        setApiToken(null);
+        disconnectSocket();
         setRole(null);
         setUserData(null);
         setLoading(false);

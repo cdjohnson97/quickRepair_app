@@ -63,7 +63,6 @@ export default function TechDashboard() {
   useEffect(() => {
     if (user) {
       fetchData();
-      setupRealtimeSubscription();
 
       // Vérification première connexion / mot de passe provisoire
       if (user.user_metadata?.must_change_password) {
@@ -71,6 +70,13 @@ export default function TechDashboard() {
       }
     }
   }, [user]);
+
+  // Abonnement Socket.IO aux nouvelles assignations : attend le profil employé, se refait
+  // si l'utilisateur change et se désabonne au démontage.
+  useEffect(() => {
+    if (!userData?.id_employe) return;
+    return setupRealtimeSubscription();
+  }, [userData?.id_employe]);
 
   useEffect(() => {
     if (userData?.id_boutique) fetchContacts();

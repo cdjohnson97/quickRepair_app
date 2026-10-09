@@ -10,6 +10,7 @@ import { BoutiquesModule } from '../src/boutiques/boutiques.module.js';
 import { PrismaModule } from '../src/prisma/prisma.module.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { ReparationsGateway } from '../src/reparations/reparations.gateway.js';
+import { PushService } from '../src/notifications/push.service.js';
 import { ReparationsModule } from '../src/reparations/reparations.module.js';
 import { createPrismaMock, PrismaMock } from './helpers/prisma-mock.js';
 
@@ -29,6 +30,7 @@ describe('API (e2e)', () => {
   let prisma: PrismaMock;
   let jwt: JwtService;
   let gateway: { notifyRepairAssigned: ReturnType<typeof vi.fn> };
+  let push: { notifyEmployee: ReturnType<typeof vi.fn> };
 
   const tokenFor = (role: Role, sub = 1, id_boutique: number | null = 3) =>
     jwt.signAsync({ sub, email: `user${sub}@fixeo.fr`, role, id_boutique });
@@ -39,6 +41,7 @@ describe('API (e2e)', () => {
   beforeAll(async () => {
     prisma = createPrismaMock();
     gateway = { notifyRepairAssigned: vi.fn() };
+    push = { notifyEmployee: vi.fn().mockResolvedValue(true) };
 
     const moduleRef = await Test.createTestingModule({
       imports: [
@@ -57,6 +60,8 @@ describe('API (e2e)', () => {
       .useValue(prisma)
       .overrideProvider(ReparationsGateway)
       .useValue(gateway)
+      .overrideProvider(PushService)
+      .useValue(push)
       .compile();
 
     app = moduleRef.createNestApplication();
@@ -301,6 +306,7 @@ describe('API (e2e)', () => {
       expect(data.id_boutique).toBe(3);
       expect(data.id_statut_actuel).toBe(1);
       expect(gateway.notifyRepairAssigned).toHaveBeenCalledWith(7, res.body);
+      expect(push.notifyEmployee).toHaveBeenCalledWith(7, expect.any(String), expect.stringContaining('QR-12345'), { type: 'repair', repairId: 42 });
     });
   });
 

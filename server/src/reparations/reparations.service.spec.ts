@@ -20,12 +20,14 @@ const responsable = (id_boutique: number | null = 3): JwtPayload => ({
 describe('ReparationsService', () => {
   let prisma: PrismaMock;
   let gateway: { notifyRepairAssigned: ReturnType<typeof vi.fn> };
+  let push: { notifyEmployee: ReturnType<typeof vi.fn> };
   let service: ReparationsService;
 
   beforeEach(() => {
     prisma = createPrismaMock();
     gateway = { notifyRepairAssigned: vi.fn() };
-    service = new ReparationsService(prisma, gateway as any);
+    push = { notifyEmployee: vi.fn().mockResolvedValue(true) };
+    service = new ReparationsService(prisma, gateway as any, push as any);
   });
 
   afterEach(() => {

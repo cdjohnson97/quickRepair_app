@@ -20,7 +20,6 @@ import TypingDots from '../../components/TypingDots';
 import { formatLastSeen } from '../../utils/lastSeen';
 import { fireMessageToast } from '../../utils/messageToast';
 import { addDays, toISODate, formatDateRangeFr, fetchEventsForEmployees, createEvent, deleteEventsByReparation, getAvailability } from '../../utils/calendarEvents';
-import { sendPushNotification } from '../../utils/pushNotifications';
 import { getStatusLine } from '../../utils/statusLine';
 import TeamAvailabilityGrid from '../../components/calendar/TeamAvailabilityGrid';
 
@@ -459,10 +458,8 @@ export default function ManagerDashboard() {
         console.error('Erreur lors de la création du bloc calendrier :', calErr.message);
       }
 
-      const assignedTech = techniciensRef.current.find(t => t.id_employe === idTechnicien);
-      if (assignedTech?.push_token) {
-        sendPushNotification(assignedTech.push_token, 'Nouveau ticket assigné 🛠️', `Ticket ${numeroSuivi} vous a été assigné.`, { type: 'repair', repairId: newRep.id_reparation });
-      }
+      // La notification du technicien (temps réel + push mobile) est envoyée par l'API NestJS :
+      // depuis le navigateur, l'appel direct à l'API push d'Expo est bloqué par CORS.
 
       setIsModalOpen(false);
       sendConfirmationEmail(submittedData, numeroSuivi);
