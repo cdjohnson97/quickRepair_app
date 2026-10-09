@@ -79,6 +79,12 @@ Le projet doit obligatoirement couvrir 8 des 11 compétences (marquées \* ci-de
 - [ ] Limitation de débit sur `/auth/login` (`@nestjs/throttler`).
 - [ ] Veille OWASP Top 10 documentée pour le dossier projet.
 
+### Notifications (bugs relevés le 2026-10-09)
+- [x] Assignation d'un ticket : push mobile envoyé par l'API (le navigateur était bloqué par CORS), socket reconnecté au changement de compte, jeton API expiré géré.
+- [ ] Messagerie : un message envoyé depuis le **web** vers un employé sur **mobile** ne déclenche pas de push (même blocage CORS, `src/components/MessageThread.jsx`). À déplacer côté serveur (Edge Function Supabase ou webhook sur la table `messages`).
+- [ ] Mobile : pas d'écoute temps réel des nouvelles réparations quand l'appli est ouverte (seul le push prévient). Ajouter un abonnement Supabase Realtime ou Socket.IO.
+- [ ] Push sur Android : non pris en charge par Expo Go depuis le SDK 53 → créer un *development build* (EAS) pour tester les notifications.
+
 ### Autres points relevés
 - [ ] Éco-conception : découper le bundle front (1,8 Mo) en chargement par page (`import()` dynamique).
 - [ ] RGPD : mentions légales, information des clients, durée de conservation des données.
