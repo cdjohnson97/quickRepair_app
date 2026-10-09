@@ -10,6 +10,11 @@ Objectif en cours : préparer le titre professionnel CDA (Concepteur Développeu
 - Projets actifs : front React (racine, `src/`), serveur NestJS (`server/`), mobile Expo (`mobile/`, voir aussi `mobile/CLAUDE.md`).
 - `backend/` (FastAPI) et `MIGRATION_BACKEND.md` : ancienne piste, ne pas y toucher sauf demande explicite.
 
+## Workflow Git (demandé par l'utilisateur)
+- Ne jamais commiter directement sur `main`. Pour chaque correctif ou fonctionnalité : créer une branche (`fix/...`, `feat/...`, `docs/...`, `ci/...`), commiter, pousser la branche, puis passer par une pull request vers `main`.
+- La CI (`.github/workflows/ci.yml`) tourne sur chaque pull request ; ne fusionner que si elle est verte.
+- Render déploie automatiquement `main` après une CI verte. Les `buildFilter` de `render.yaml` ignorent les fichiers hors code (docs, CI) : après une fusion qui ne touche que ces fichiers, rien n'est redéployé.
+
 ## Règles importantes
 - **Secrets** : `server/.env` et `server/.env.keys` ne doivent jamais être commités ni affichés (pas de `cat`, `diff` ou `echo` de leur contenu). Le dépôt GitHub est public. Après modification de `server/.env` : `cd server && npm run env:encrypt` puis commiter `server/.env.encrypted`.
 - **Base de données** : `server/prisma/schema.prisma` a été généré par introspection de la base Supabase de production (il contient aussi les schémas internes `auth`, etc.). Ne **jamais** lancer `prisma migrate`, `prisma db push` ou `prisma migrate reset`. Utiliser seulement `prisma generate` (et `prisma db pull` si le schéma de la base change).
