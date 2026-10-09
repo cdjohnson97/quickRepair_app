@@ -41,11 +41,12 @@ const EMOJIS = [
 
 // Fil de conversation à deux entre currentUserId et otherUserId (table `messages`).
 // Réutilisé côté manager (fiche technicien) et côté technicien (espace personnel).
-export default function MessageThread({ currentUserId, otherUserId, otherUserName, otherUserAvatar }) {
+// `initialMessage` : brouillon prérempli dans la zone de saisie (ex. alerte de retard), à relire avant envoi.
+export default function MessageThread({ currentUserId, otherUserId, otherUserName, otherUserAvatar, initialMessage = '' }) {
   const { userData } = useAuth();
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [newMessage, setNewMessage] = useState('');
+  const [newMessage, setNewMessage] = useState(initialMessage);
   const [sending, setSending] = useState(false);
   const [otherTyping, setOtherTyping] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
