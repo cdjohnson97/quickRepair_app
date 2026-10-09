@@ -1,24 +1,16 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 // eslint-disable-next-line no-unused-vars -- `motion` est utilisé en JSX (<motion.div>), que la config ESLint ne détecte pas.
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import {
-  FiSmartphone, FiMonitor, FiTablet, FiBatteryCharging, FiCpu, FiBell, FiTool,
-  FiMail, FiLock, FiEye, FiEyeOff, FiArrowRight, FiSearch,
+  FiBell, FiTool, FiMail, FiLock, FiEye, FiEyeOff, FiArrowRight, FiSearch,
   FiZap, FiUsers, FiShield
 } from 'react-icons/fi';
 import { supabase } from '../../supabaseClient';
 import { apiClient, setApiToken } from '../../apiClient';
-
-// Icônes en orbite autour de la clé à molette (angle en degrés sur le cercle).
-const SATELLITES = [
-  { Icon: FiSmartphone, angle: 0, tone: 'from-sky-400 to-blue-600' },
-  { Icon: FiMonitor, angle: 60, tone: 'from-indigo-400 to-violet-600' },
-  { Icon: FiTablet, angle: 120, tone: 'from-cyan-400 to-sky-600' },
-  { Icon: FiBatteryCharging, angle: 180, tone: 'from-emerald-400 to-teal-600' },
-  { Icon: FiCpu, angle: 240, tone: 'from-fuchsia-400 to-purple-600' },
-  { Icon: FiBell, angle: 300, tone: 'from-amber-400 to-orange-600' }
-];
+import { useLoginTransition } from '../../context/LoginTransitionContext';
+import Brand from '../../components/Brand';
+import { REPAIR_TOOLS } from '../../components/repairTools';
 
 const ORBIT_RADIUS = 150;
 const ORBIT_DURATION = 40;
@@ -30,14 +22,6 @@ const HIGHLIGHTS = [
   { Icon: FiUsers, text: 'Planning et messagerie d’équipe' },
   { Icon: FiShield, text: 'Accès sécurisé selon votre rôle' }
 ];
-
-function Brand({ className = '' }) {
-  return (
-    <span className={`font-extrabold tracking-tight ${className}`}>
-      Fi<span className="bg-gradient-to-br from-sky-300 to-blue-500 bg-clip-text text-transparent">X</span>eo
-    </span>
-  );
-}
 
 function RepairOrbit({ reduceMotion }) {
   const spin = reduceMotion ? {} : { rotate: 360 };
@@ -70,7 +54,7 @@ function RepairOrbit({ reduceMotion }) {
 
       {/* Anneau en rotation ; chaque icône tourne en sens inverse pour rester droite */}
       <motion.div className="absolute inset-0" animate={spin} transition={spinTransition}>
-        {SATELLITES.map((satellite, i) => {
+        {REPAIR_TOOLS.map((satellite, i) => {
           const { Icon: SatelliteIcon, angle, tone } = satellite;
           const rad = (angle * Math.PI) / 180;
           return (
@@ -194,7 +178,7 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const navigate = useNavigate();
+  const { playLoginTransition } = useLoginTransition();
   const reduceMotion = useReducedMotion();
 
   const handleLogin = async (e) => {
@@ -231,18 +215,17 @@ export default function Login() {
         .eq('email', userEmail)
         .single();
 
+      // 3. Écran de transition animé, puis redirection vers le tableau de bord du rôle
       if (employe) {
         if (employe.role === 'Administrateur') {
-          navigate('/admin');
-        } else if (employe.role === 'Responsable') {
-          navigate('/manager');
+          playLoginTransition('/admin', 'Ouverture de l’administration…');
         } else if (employe.role === 'Technicien') {
-          navigate('/technicien');
+          playLoginTransition('/technicien', 'Préparation de votre atelier…');
         } else {
-          navigate('/manager');
+          playLoginTransition('/manager', 'Préparation de votre boutique…');
         }
       } else {
-        navigate('/client');
+        playLoginTransition('/client', 'Chargement de votre suivi…');
       }
 
     } catch (err) {

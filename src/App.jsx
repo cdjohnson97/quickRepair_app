@@ -3,6 +3,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'r
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { PresenceProvider, useOnlineStatus } from './context/PresenceContext';
+import { LoginTransitionProvider } from './context/LoginTransitionContext';
+import Brand from './components/Brand';
 import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/auth/login';
 import { supabase } from './supabaseClient'; // Pour le bouton déconnexion
@@ -97,7 +99,7 @@ const NavBar = () => {
 
   return (
     <nav className="bg-slate-800 dark:bg-slate-950 text-white p-4 flex justify-between items-center shadow-md px-8 sticky top-0 z-50">
-      <div className="font-bold text-xl tracking-wider">FiXeo</div>
+      <Brand className="text-2xl" />
 
       <div className="flex gap-6 items-center">
         {role === 'Client' && <span className="text-blue-300">Vue Client</span>}
@@ -152,6 +154,7 @@ function App() {
     <AuthProvider>
     <PresenceProvider>
       <Router>
+      <LoginTransitionProvider>
         <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans transition-colors">
 
           <NavBar />
@@ -183,6 +186,7 @@ function App() {
           
 
         </div>
+      </LoginTransitionProvider>
       </Router>
     </PresenceProvider>
     </AuthProvider>
