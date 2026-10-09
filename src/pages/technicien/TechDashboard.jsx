@@ -3,7 +3,7 @@ import { supabase } from '../../supabaseClient';
 import { apiClient } from '../../apiClient';
 import { getSocket } from '../../socketClient';
 import { useAuth } from '../../context/AuthContext';
-import { FiTool, FiCheck, FiAlertCircle, FiFilter, FiX, FiClock, FiMessageSquare, FiFileText, FiKey, FiArrowLeft, FiStar } from 'react-icons/fi';
+import { FiTool, FiCheck, FiAlertCircle, FiAlertTriangle, FiFilter, FiX, FiClock, FiMessageSquare, FiFileText, FiKey, FiArrowLeft, FiStar } from 'react-icons/fi';
 import { motion, AnimatePresence } from 'framer-motion';
 import Swal from 'sweetalert2';
 import MessageThread from '../../components/MessageThread';
@@ -13,6 +13,12 @@ import Avatar from '../../components/Avatar';
 import { formatLastSeen } from '../../utils/lastSeen';
 import { fireMessageToast } from '../../utils/messageToast';
 import { deleteEventsByReparation } from '../../utils/calendarEvents';
+import { fetchOverdueRepairs, formatDueDate } from '../../utils/overdueRepairs';
+import OverdueRepairsWidget from '../../components/OverdueRepairsWidget';
+
+function overdueLabel(daysLate) {
+  return daysLate > 0 ? `En retard de ${daysLate} jour${daysLate > 1 ? 's' : ''}` : 'À rendre aujourd’hui';
+}
 
 const getStatusBadgeColor = (idStatut) => {
   switch (idStatut) {
@@ -36,6 +42,36 @@ export default function TechDashboard() {
   const [statuts, setStatuts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filterStatut, setFilterStatut] = useState('ALL');
+
+  // --- RÉPARATIONS EN RETARD (mêmes règles que le manager, voir utils/overdueRepairs.js) ---
+  const [overdueRepairs, setOverdueRepairs] = useState([]);
+  const [isOverdueOpen, setIsOverdueOpen] = useState(false);
+  const overdueToastShownRef = useRef(false);
+  const overdueById = new Map(overdueRepairs.map((item) => [item.rep.id_reparation, item]));
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchOverdueRepairs(reparations).then((items) => { if (!cancelled) setOverdueRepairs(items); });
+    return () => { cancelled = true; };
+  }, [reparations]);
+
+  // Rappel à la connexion (une seule fois), sans écraser la fenêtre de changement de mot de passe.
+  useEffect(() => {
+    if (overdueToastShownRef.current || overdueRepairs.length === 0) return;
+    overdueToastShownRef.current = true;
+    if (Swal.isVisible()) return;
+    const late = overdueRepairs.filter((item) => item.daysLate > 0).length;
+    const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 8000, timerProgressBar: true });
+    Toast.fire({
+      icon: 'warning',
+      title: late > 0 ? `Vous avez ${late} réparation${late > 1 ? 's' : ''} en retard` : 'Réparations à rendre aujourd’hui',
+      text: 'Cliquez pour voir le détail.',
+      didOpen: (toast) => {
+        toast.style.cursor = 'pointer';
+        toast.addEventListener('click', () => { Swal.close(); setIsOverdueOpen(true); });
+      }
+    });
+  }, [overdueRepairs]);
 
   // --- ÉTATS MODALE DOSSIER ---
   const [selectedRepair, setSelectedRepair] = useState(null);
@@ -304,10 +340,14 @@ export default function TechDashboard() {
     }
   };
 
-  const filteredReparations = reparations.filter((rep) => {
-    if (filterStatut === 'ALL') return true;
-    return rep.id_statut_actuel === parseInt(filterStatut);
-  });
+  // Les réparations en retard passent en tête (les plus en retard d'abord), l'ordre reste inchangé sinon.
+  const urgencyRank = (rep) => overdueById.get(rep.id_reparation)?.daysLate ?? -1;
+  const filteredReparations = reparations
+    .filter((rep) => {
+      if (filterStatut === 'ALL') return true;
+      return rep.id_statut_actuel === parseInt(filterStatut);
+    })
+    .sort((a, b) => urgencyRank(b) - urgencyRank(a));
 
   if (loading) return <div className="p-10 text-center text-slate-500">Chargement de l'atelier...</div>;
 
@@ -376,7 +416,9 @@ export default function TechDashboard() {
       ) : (
         <motion.div layout className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <AnimatePresence>
-            {filteredReparations.map((rep) => (
+            {filteredReparations.map((rep) => {
+              const overdue = overdueById.get(rep.id_reparation);
+              return (
               <motion.div
                 key={rep.id_reparation}
                 layout
@@ -384,8 +426,22 @@ export default function TechDashboard() {
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.9 }}
                 transition={{ duration: 0.2 }}
-                className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 hover:shadow-md flex flex-col"
+                className={`bg-white dark:bg-slate-800 rounded-2xl shadow-sm p-6 hover:shadow-md flex flex-col ${
+                  !overdue
+                    ? 'border border-slate-200 dark:border-slate-700'
+                    : overdue.daysLate > 0
+                      ? 'border-2 border-red-400 dark:border-red-700'
+                      : 'border-2 border-amber-400 dark:border-amber-700'
+                }`}
               >
+                {overdue && (
+                  <div className={`-mt-2 mb-4 flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-bold ${
+                    overdue.daysLate > 0 ? 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300' : 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+                  }`}>
+                    <FiAlertTriangle className="shrink-0" />
+                    {overdueLabel(overdue.daysLate)} · échéance le {formatDueDate(overdue.due)}
+                  </div>
+                )}
                 <div className="flex justify-between items-start mb-4">
                   <span className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-3 py-1 rounded-full text-xs font-bold tracking-wider font-mono">
                     #{rep.numero_suivi}
@@ -414,7 +470,8 @@ export default function TechDashboard() {
                   </button>
                 </div>
               </motion.div>
-            ))}
+              );
+            })}
           </AnimatePresence>
         </motion.div>
       )}
@@ -452,6 +509,19 @@ export default function TechDashboard() {
               <div className="flex flex-col md:flex-row flex-grow overflow-hidden bg-slate-50 dark:bg-slate-900">
                 {/* Colonne Gauche : Formulaire */}
                 <div className="w-full md:w-1/2 p-6 overflow-y-auto border-r border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                  {overdueById.get(selectedRepair.id_reparation) && (() => {
+                    const overdue = overdueById.get(selectedRepair.id_reparation);
+                    return (
+                      <div role="alert" className={`mb-6 flex items-start gap-2 rounded-xl border p-4 text-sm font-semibold ${
+                        overdue.daysLate > 0
+                          ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300'
+                          : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-300'
+                      }`}>
+                        <FiAlertTriangle className="mt-0.5 shrink-0" />
+                        <span>{overdueLabel(overdue.daysLate)} — échéance le {formatDueDate(overdue.due)}. À traiter en priorité.</span>
+                      </div>
+                    );
+                  })()}
                   <div className="mb-6">
                     <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">Description de la panne</h3>
                     <div className="bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 p-4 rounded-xl border border-red-100 dark:border-red-800 font-medium text-sm">
@@ -542,6 +612,18 @@ export default function TechDashboard() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* --- ALERTE FLOTTANTE : MES RÉPARATIONS EN RETARD --- */}
+      <OverdueRepairsWidget
+        items={overdueRepairs}
+        showTechnicien={false}
+        open={isOverdueOpen}
+        onOpenChange={setIsOverdueOpen}
+        onAction={({ rep }) => { setIsOverdueOpen(false); openModal(rep); }}
+        actionLabel="Ouvrir"
+        actionIcon={FiFileText}
+        canAct={() => true}
+      />
 
       {/* --- MODALE MESSAGERIE --- */}
       <AnimatePresence>

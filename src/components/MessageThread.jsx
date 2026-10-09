@@ -1,10 +1,11 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../supabaseClient';
-import { FiSend, FiCheck, FiSmile, FiThumbsUp } from 'react-icons/fi';
+import { FiSend, FiCheck, FiSmile, FiThumbsUp, FiAlertTriangle } from 'react-icons/fi';
 import Avatar from './Avatar';
 import TypingDots from './TypingDots';
 import { sendPushNotification } from '../utils/pushNotifications';
+import { isUrgentMessage } from '../utils/overdueRepairs';
 import { useAuth } from '../context/AuthContext';
 
 const TYPING_BROADCAST_THROTTLE_MS = 2000;
@@ -210,7 +211,8 @@ export default function MessageThread({ currentUserId, otherUserId, otherUserNam
       const { data: recipient } = await supabase.from('employes').select('push_token').eq('id_employe', otherUserId).maybeSingle();
       if (recipient?.push_token) {
         const senderName = userData ? `${userData.prenom} ${userData.nom}` : 'Nouveau message';
-        sendPushNotification(recipient.push_token, senderName, contenu, { type: 'message' });
+        const title = isUrgentMessage(contenu) ? `⚠️ Urgent · ${senderName}` : senderName;
+        sendPushNotification(recipient.push_token, title, contenu, { type: 'message' });
       }
     } catch (error) {
       console.error("Erreur lors de l'envoi du message :", error.message);
@@ -233,14 +235,21 @@ export default function MessageThread({ currentUserId, otherUserId, otherUserNam
               const dateLabel = getDateLabel(m.date_envoi);
               const showDateSeparator = i === 0 || getDateLabel(messages[i - 1].date_envoi) !== dateLabel;
 
+              const urgent = isUrgentMessage(m.contenu);
+
               const bubble = (
                 <div className={`relative max-w-[75%] px-3 py-2 rounded-2xl text-sm ${
                   isMine
-                    ? 'bg-blue-600 text-white rounded-br-sm'
-                    : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-bl-sm'
+                    ? `${urgent ? 'bg-red-600' : 'bg-blue-600'} text-white rounded-br-sm`
+                    : urgent
+                      ? 'bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-200 border-2 border-red-300 dark:border-red-700 rounded-bl-sm'
+                      : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-bl-sm'
                 }`}>
                   {!isMine && (
-                    <p className="text-[10px] font-bold text-blue-500 dark:text-blue-400 uppercase tracking-wide mb-0.5">{otherUserName}</p>
+                    <p className={`text-[10px] font-bold uppercase tracking-wide mb-0.5 flex items-center gap-1 ${urgent ? 'text-red-600 dark:text-red-400' : 'text-blue-500 dark:text-blue-400'}`}>
+                      {urgent && <FiAlertTriangle size={11} />}
+                      {otherUserName}{urgent && ' · Urgent'}
+                    </p>
                   )}
                   <p className="whitespace-pre-wrap break-words">{m.contenu}</p>
                   <div className={`flex items-center gap-1 mt-1 ${isMine ? 'justify-end' : ''}`}>

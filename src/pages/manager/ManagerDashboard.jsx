@@ -23,6 +23,7 @@ import { addDays, toISODate, formatDateRangeFr, fetchEventsForEmployees, createE
 import { getStatusLine } from '../../utils/statusLine';
 import TeamAvailabilityGrid from '../../components/calendar/TeamAvailabilityGrid';
 import OverdueRepairsWidget from '../../components/OverdueRepairsWidget';
+import { fetchOverdueRepairs, formatDueDate, URGENT_PREFIX } from '../../utils/overdueRepairs';
 
 export default function ManagerDashboard() {
   const { userData } = useAuth();
@@ -256,45 +257,15 @@ export default function ManagerDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [techniciens]);
 
-  // --- RÉPARATIONS EN RETARD : échéance = fin du dernier bloc "réparation" du calendrier ---
-  // Réparation non clôturée (statuts 6/8) dont l'échéance est passée = « en retard » ;
-  // échéance aujourd'hui = « à rendre aujourd'hui ». Affichées dans l'alerte flottante.
+  // --- RÉPARATIONS EN RETARD (voir utils/overdueRepairs.js), affichées dans l'alerte flottante ---
   const [overdueRepairs, setOverdueRepairs] = useState([]);
   const [isOverdueOpen, setIsOverdueOpen] = useState(false);
   const overdueToastShownRef = useRef(false);
 
-  const fetchOverdueRepairs = async () => {
-    const openRepairs = reparationsList.filter(r => ![6, 8].includes(r.id_statut_actuel));
-    if (openRepairs.length === 0) { setOverdueRepairs([]); return; }
-
-    const { data, error } = await supabase
-      .from('calendrier_evenements')
-      .select('id_reparation, date_fin')
-      .eq('type', 'reparation')
-      .in('id_reparation', openRepairs.map(r => r.id_reparation));
-    if (error) { console.error('Erreur lors du calcul des retards :', error.message); return; }
-
-    // Une réparation replanifiée a plusieurs blocs : on garde l'échéance la plus tardive.
-    const dueByRepair = new Map();
-    (data || []).forEach(ev => {
-      const current = dueByRepair.get(ev.id_reparation);
-      if (!current || ev.date_fin > current) dueByRepair.set(ev.id_reparation, ev.date_fin);
-    });
-
-    const todayIso = toISODate(new Date());
-    const items = openRepairs
-      .filter(rep => dueByRepair.has(rep.id_reparation) && dueByRepair.get(rep.id_reparation) <= todayIso)
-      .map(rep => {
-        const due = dueByRepair.get(rep.id_reparation);
-        return { rep, due, daysLate: Math.round((Date.parse(todayIso) - Date.parse(due)) / 86400000) };
-      })
-      .sort((a, b) => b.daysLate - a.daysLate);
-    setOverdueRepairs(items);
-  };
-
   useEffect(() => {
-    fetchOverdueRepairs();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    let cancelled = false;
+    fetchOverdueRepairs(reparationsList).then(items => { if (!cancelled) setOverdueRepairs(items); });
+    return () => { cancelled = true; };
   }, [reparationsList]);
 
   // Rappel à l'ouverture du tableau de bord (une seule fois) ; un clic ouvre l'alerte détaillée.
@@ -319,11 +290,10 @@ export default function ManagerDashboard() {
     const stats = techStatsRef.current.find(s => s.technicien.id_employe === rep.id_technicien);
     if (!stats) return;
     const appareil = [rep.appareils?.marque, rep.appareils?.modele].filter(Boolean).join(' ');
-    const dueLabel = new Date(`${due}T00:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
     const echeance = daysLate > 0
-      ? `devait être terminé le ${dueLabel} (${daysLate} jour${daysLate > 1 ? 's' : ''} de retard)`
+      ? `devait être terminé le ${formatDueDate(due)} (${daysLate} jour${daysLate > 1 ? 's' : ''} de retard)`
       : "doit être terminé aujourd'hui";
-    setWarningDraft(`⚠️ URGENT — Le ticket ${rep.numero_suivi}${appareil ? ` (${appareil})` : ''} ${echeance}. Merci de le traiter en priorité et de me tenir informé de l'avancement.`);
+    setWarningDraft(`${URGENT_PREFIX} — Le ticket ${rep.numero_suivi}${appareil ? ` (${appareil})` : ''} ${echeance}. Merci de le traiter en priorité et de me tenir informé de l'avancement.`);
     setIsOverdueOpen(false);
     setSelectedTechnicien(stats);
   };
@@ -1027,7 +997,7 @@ export default function ManagerDashboard() {
         techniciens={techniciens}
         open={isOverdueOpen}
         onOpenChange={setIsOverdueOpen}
-        onWarn={warnTechnicien}
+        onAction={warnTechnicien}
       />
 
       {/* --- MODALE MESSAGERIE AVEC L'ADMINISTRATION --- */}
