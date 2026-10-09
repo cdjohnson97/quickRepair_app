@@ -11,7 +11,9 @@ on:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # Sur main, chaque commit doit être vérifié jusqu'au bout : Render ne déploie qu'un commit
+  # dont la CI est verte. On n'annule les exécutions précédentes que pour les pull requests.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
