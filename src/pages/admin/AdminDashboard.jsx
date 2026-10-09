@@ -36,6 +36,11 @@ import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 let DefaultIcon = L.icon({ iconUrl: icon, shadowUrl: iconShadow, iconAnchor: [12, 41] });
 L.Marker.prototype.options.icon = DefaultIcon;
 
+// Fond de carte OpenStreetMap : gratuit et sans clé API (les tuiles CARTO en exigent une désormais).
+// L'attribution est obligatoire selon la politique d'usage d'OpenStreetMap.
+const TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+const TILE_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+
 function ChangeView({ center, zoom }) {
   const map = useMap();
   map.setView(center, zoom);
@@ -374,7 +379,7 @@ export default function AdminDashboard() {
             center={selectedBoutique ? [selectedBoutique.latitude, selectedBoutique.longitude] : [48.86, 2.33]}
             zoom={selectedBoutique ? 15 : 12}
           />
-          <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
+          <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} />
           {boutiques.map((b) => (
             <Marker
               key={b.id_boutique}
@@ -704,7 +709,7 @@ export default function AdminDashboard() {
                   <div className="rounded-lg overflow-hidden border dark:border-slate-600" style={{ height: 180 }}>
                     <MapContainer center={[newBoutique.latitude, newBoutique.longitude]} zoom={13} style={{ height: '100%', width: '100%' }}>
                       <ChangeView center={[newBoutique.latitude, newBoutique.longitude]} zoom={13} />
-                      <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
+                      <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} />
                       <Marker position={[newBoutique.latitude, newBoutique.longitude]} />
                       <LocationPicker onPick={(lat, lng) => setNewBoutique((prev) => ({ ...prev, latitude: lat, longitude: lng }))} />
                     </MapContainer>
