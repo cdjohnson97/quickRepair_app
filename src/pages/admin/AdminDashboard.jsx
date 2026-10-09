@@ -15,7 +15,10 @@ import {
   FiLoader,
   FiMail,
   FiPhone,
-  FiMessageSquare
+  FiMessageSquare,
+  FiList,
+  FiSearch,
+  FiChevronRight
 } from 'react-icons/fi';
 import { motion, AnimatePresence } from 'framer-motion';
 import Swal from 'sweetalert2';
@@ -68,6 +71,8 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [unreadByAdmin, setUnreadByAdmin] = useState({});
+  const [isBoutiqueListOpen, setIsBoutiqueListOpen] = useState(false);
+  const [boutiqueSearch, setBoutiqueSearch] = useState('');
 
   // Modales
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
@@ -366,6 +371,11 @@ export default function AdminDashboard() {
     }
   };
 
+  const searchTerm = boutiqueSearch.trim().toLowerCase();
+  const filteredBoutiques = boutiques
+    .filter((b) => !searchTerm || [b.nom, b.ville, b.adresse].some((field) => field?.toLowerCase().includes(searchTerm)))
+    .sort((a, b) => (a.ville || '').localeCompare(b.ville || '', 'fr') || (a.nom || '').localeCompare(b.nom || '', 'fr'));
+
   if (loading) {
     return <div className="h-[calc(100vh-76px)] flex items-center justify-center text-slate-400 font-medium">Chargement du réseau...</div>;
   }
@@ -380,7 +390,7 @@ export default function AdminDashboard() {
             zoom={selectedBoutique ? 15 : 12}
           />
           <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} />
-          {boutiques.map((b) => (
+          {boutiques.filter((b) => b.latitude != null && b.longitude != null).map((b) => (
             <Marker
               key={b.id_boutique}
               position={[b.latitude, b.longitude]}
@@ -409,6 +419,76 @@ export default function AdminDashboard() {
         >
           <FiPlus className="text-blue-600" /> Ajouter une boutique
         </button>
+
+        {/* Liste de toutes les boutiques du réseau (recherche par nom, ville ou adresse) */}
+        <div className="absolute top-4 right-4 z-[1000] flex flex-col items-end gap-2">
+          <button
+            onClick={() => setIsBoutiqueListOpen((v) => !v)}
+            aria-expanded={isBoutiqueListOpen}
+            className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 px-4 py-2 rounded-xl shadow-md flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all font-semibold text-sm"
+          >
+            <FiList className="text-blue-600" /> Toutes les boutiques
+            <span className="bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-xs font-bold px-2 py-0.5 rounded-full">{boutiques.length}</span>
+          </button>
+
+          <AnimatePresence>
+            {isBoutiqueListOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2 }}
+                className="w-80 max-w-[calc(100vw-2rem)] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl overflow-hidden"
+              >
+                <div className="p-3 border-b border-slate-100 dark:border-slate-700">
+                  <div className="relative">
+                    <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                    <input
+                      type="search"
+                      value={boutiqueSearch}
+                      onChange={(e) => setBoutiqueSearch(e.target.value)}
+                      placeholder="Nom, ville ou adresse…"
+                      aria-label="Rechercher une boutique"
+                      className="w-full border dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded-lg py-2 pl-8 pr-3 text-sm outline-none focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <ul className="max-h-[55vh] overflow-y-auto p-2 space-y-1">
+                  {filteredBoutiques.map((b) => {
+                    const isSelected = selectedBoutique?.id_boutique === b.id_boutique;
+                    const hasPosition = b.latitude != null && b.longitude != null;
+                    return (
+                      <li key={b.id_boutique}>
+                        <button
+                          onClick={() => handleSelectBoutique(b)}
+                          className={`w-full text-left flex items-center justify-between gap-2 p-3 rounded-xl transition ${
+                            isSelected ? 'bg-blue-50 dark:bg-blue-900/30 ring-1 ring-blue-200 dark:ring-blue-800' : 'hover:bg-slate-50 dark:hover:bg-slate-700/60'
+                          }`}
+                        >
+                          <span className="min-w-0">
+                            <span className="block text-sm font-bold text-slate-800 dark:text-slate-100 truncate">{b.nom}</span>
+                            <span className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 truncate">
+                              <FiMapPin size={11} className="shrink-0" /> {[b.adresse, b.ville].filter(Boolean).join(', ') || 'Adresse non renseignée'}
+                            </span>
+                            {!hasPosition && <span className="block text-[10px] font-bold uppercase text-amber-600 mt-0.5">Non placée sur la carte</span>}
+                          </span>
+                          <FiChevronRight className="shrink-0 text-slate-400" />
+                        </button>
+                      </li>
+                    );
+                  })}
+
+                  {filteredBoutiques.length === 0 && (
+                    <li className="text-center p-4 text-xs text-slate-400">
+                      {boutiques.length === 0 ? 'Aucune boutique pour le moment.' : 'Aucune boutique ne correspond à la recherche.'}
+                    </li>
+                  )}
+                </ul>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
 
       {/* DROITE : PANNEAU BOUTIQUE */}

@@ -3,7 +3,7 @@ import { supabase } from '../../supabaseClient';
 import { apiClient } from '../../apiClient';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
-import { FiTool, FiClock, FiCheckCircle, FiTrendingUp, FiPieChart, FiPlus, FiX, FiSearch, FiUser, FiCheck, FiPrinter, FiAlertCircle, FiMessageSquare, FiFileText, FiKey, FiRefreshCw, FiArrowLeft } from 'react-icons/fi';
+import { FiTool, FiClock, FiCheckCircle, FiTrendingUp, FiPieChart, FiPlus, FiX, FiSearch, FiUser, FiCheck, FiPrinter, FiAlertCircle, FiMessageSquare, FiFileText, FiKey, FiRefreshCw, FiArrowLeft, FiAlertTriangle } from 'react-icons/fi';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
 import Swal from 'sweetalert2';
@@ -22,6 +22,7 @@ import { fireMessageToast } from '../../utils/messageToast';
 import { addDays, toISODate, formatDateRangeFr, fetchEventsForEmployees, createEvent, deleteEventsByReparation, getAvailability } from '../../utils/calendarEvents';
 import { getStatusLine } from '../../utils/statusLine';
 import TeamAvailabilityGrid from '../../components/calendar/TeamAvailabilityGrid';
+import OverdueRepairsWidget from '../../components/OverdueRepairsWidget';
 
 export default function ManagerDashboard() {
   const { userData } = useAuth();
@@ -50,6 +51,7 @@ export default function ManagerDashboard() {
   const [selectedTechnicien, setSelectedTechnicien] = useState(null);
   const [unreadByTech, setUnreadByTech] = useState({});
   const [resettingPassword, setResettingPassword] = useState(false);
+  const [warningDraft, setWarningDraft] = useState(''); // message d'urgence prérempli (alerte de retard)
   const selectedTechnicienIdRef = useRef(null);
   const techniciensRef = useRef([]);
   const techStatsRef = useRef([]);
@@ -254,35 +256,83 @@ export default function ManagerDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [techniciens]);
 
-  // --- RAPPEL : bloc "réparation" arrivant à échéance sans que le ticket soit clôturé ---
-  const expiringCheckedRef = useRef(false);
+  // --- RÉPARATIONS EN RETARD : échéance = fin du dernier bloc "réparation" du calendrier ---
+  // Réparation non clôturée (statuts 6/8) dont l'échéance est passée = « en retard » ;
+  // échéance aujourd'hui = « à rendre aujourd'hui ». Affichées dans l'alerte flottante.
+  const [overdueRepairs, setOverdueRepairs] = useState([]);
+  const [isOverdueOpen, setIsOverdueOpen] = useState(false);
+  const overdueToastShownRef = useRef(false);
 
-  const checkExpiringRepairs = () => {
-    const todayIso = toISODate(new Date());
-    const yesterdayIso = toISODate(addDays(new Date(), -1));
+  const fetchOverdueRepairs = async () => {
+    const openRepairs = reparationsList.filter(r => ![6, 8].includes(r.id_statut_actuel));
+    if (openRepairs.length === 0) { setOverdueRepairs([]); return; }
 
-    const expiring = teamEvents
-      .filter(ev => ev.type === 'reparation' && ev.id_reparation && (ev.date_fin === todayIso || ev.date_fin === yesterdayIso))
-      .map(ev => reparationsList.find(r => r.id_reparation === ev.id_reparation))
-      .filter(rep => rep && ![6, 8].includes(rep.id_statut_actuel));
+    const { data, error } = await supabase
+      .from('calendrier_evenements')
+      .select('id_reparation, date_fin')
+      .eq('type', 'reparation')
+      .in('id_reparation', openRepairs.map(r => r.id_reparation));
+    if (error) { console.error('Erreur lors du calcul des retards :', error.message); return; }
 
-    if (expiring.length === 0) return;
-
-    const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 8000, timerProgressBar: true });
-    Toast.fire({
-      icon: 'warning',
-      title: 'Réparations en retard possible',
-      html: expiring.map(rep => `Ticket <b>${rep.numero_suivi}</b> (${rep.employes?.prenom || ''} ${rep.employes?.nom || ''}) devait être terminé`).join('<br/>')
+    // Une réparation replanifiée a plusieurs blocs : on garde l'échéance la plus tardive.
+    const dueByRepair = new Map();
+    (data || []).forEach(ev => {
+      const current = dueByRepair.get(ev.id_reparation);
+      if (!current || ev.date_fin > current) dueByRepair.set(ev.id_reparation, ev.date_fin);
     });
+
+    const todayIso = toISODate(new Date());
+    const items = openRepairs
+      .filter(rep => dueByRepair.has(rep.id_reparation) && dueByRepair.get(rep.id_reparation) <= todayIso)
+      .map(rep => {
+        const due = dueByRepair.get(rep.id_reparation);
+        return { rep, due, daysLate: Math.round((Date.parse(todayIso) - Date.parse(due)) / 86400000) };
+      })
+      .sort((a, b) => b.daysLate - a.daysLate);
+    setOverdueRepairs(items);
   };
 
   useEffect(() => {
-    if (expiringCheckedRef.current) return;
-    if (teamEvents.length === 0 && techniciens.length === 0) return;
-    expiringCheckedRef.current = true;
-    checkExpiringRepairs();
+    fetchOverdueRepairs();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [teamEvents]);
+  }, [reparationsList]);
+
+  // Rappel à l'ouverture du tableau de bord (une seule fois) ; un clic ouvre l'alerte détaillée.
+  useEffect(() => {
+    if (overdueToastShownRef.current || overdueRepairs.length === 0) return;
+    overdueToastShownRef.current = true;
+    const late = overdueRepairs.filter(item => item.daysLate > 0).length;
+    const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 8000, timerProgressBar: true });
+    Toast.fire({
+      icon: 'warning',
+      title: late > 0 ? `${late} réparation${late > 1 ? 's' : ''} en retard` : 'Réparations à rendre aujourd’hui',
+      html: `${overdueRepairs.slice(0, 3).map(({ rep }) => `Ticket <b>${rep.numero_suivi}</b> (${rep.employes?.prenom || ''} ${rep.employes?.nom || ''})`).join('<br/>')}<br/><small>Cliquez pour voir le détail et prévenir le technicien.</small>`,
+      didOpen: (toast) => {
+        toast.style.cursor = 'pointer';
+        toast.addEventListener('click', () => { Swal.close(); setIsOverdueOpen(true); });
+      }
+    });
+  }, [overdueRepairs]);
+
+  // « Prévenir » : ouvre la fiche du technicien avec un message d'urgence prérempli.
+  const warnTechnicien = ({ rep, due, daysLate }) => {
+    const stats = techStatsRef.current.find(s => s.technicien.id_employe === rep.id_technicien);
+    if (!stats) return;
+    const appareil = [rep.appareils?.marque, rep.appareils?.modele].filter(Boolean).join(' ');
+    const dueLabel = new Date(`${due}T00:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
+    const echeance = daysLate > 0
+      ? `devait être terminé le ${dueLabel} (${daysLate} jour${daysLate > 1 ? 's' : ''} de retard)`
+      : "doit être terminé aujourd'hui";
+    setWarningDraft(`⚠️ URGENT — Le ticket ${rep.numero_suivi}${appareil ? ` (${appareil})` : ''} ${echeance}. Merci de le traiter en priorité et de me tenir informé de l'avancement.`);
+    setIsOverdueOpen(false);
+    setSelectedTechnicien(stats);
+  };
+
+  const closeTechnicienSheet = () => {
+    setSelectedTechnicien(null);
+    setWarningDraft('');
+    fetchUnreadByTech();
+  };
 
   const stats = useMemo(() => ({
     total: reparationsList.length,
@@ -874,7 +924,7 @@ export default function ManagerDashboard() {
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onClick={() => { setSelectedTechnicien(null); fetchUnreadByTech(); }}
+              onClick={closeTechnicienSheet}
               className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
             />
             <motion.div
@@ -899,7 +949,7 @@ export default function ManagerDashboard() {
                     })()}
                   </div>
                 </div>
-                <button onClick={() => { setSelectedTechnicien(null); fetchUnreadByTech(); }} className="text-slate-400 hover:text-white bg-slate-700/50 p-2 rounded-full transition">
+                <button onClick={closeTechnicienSheet} className="text-slate-400 hover:text-white bg-slate-700/50 p-2 rounded-full transition">
                   <FiX className="text-xl" />
                 </button>
               </div>
@@ -951,17 +1001,34 @@ export default function ManagerDashboard() {
                 </div>
 
                 <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3 mt-6 flex items-center gap-2"><FiMessageSquare /> Messagerie</h3>
+                {warningDraft && (
+                  <div role="alert" className="mb-3 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300">
+                    <FiAlertTriangle className="mt-0.5 shrink-0" />
+                    <span>Message d'urgence prérempli ci-dessous : relisez-le puis envoyez-le. Le technicien recevra aussi une notification.</span>
+                  </div>
+                )}
                 <MessageThread
+                  key={warningDraft}
                   currentUserId={userData.id_employe}
                   otherUserId={selectedTechnicien.technicien.id_employe}
                   otherUserName={`${selectedTechnicien.technicien.prenom} ${selectedTechnicien.technicien.nom}`}
                   otherUserAvatar={selectedTechnicien.technicien.avatar_url}
+                  initialMessage={warningDraft}
                 />
               </div>
             </motion.div>
           </div>
         )}
       </AnimatePresence>
+
+      {/* --- ALERTE FLOTTANTE : RÉPARATIONS EN RETARD --- */}
+      <OverdueRepairsWidget
+        items={overdueRepairs}
+        techniciens={techniciens}
+        open={isOverdueOpen}
+        onOpenChange={setIsOverdueOpen}
+        onWarn={warnTechnicien}
+      />
 
       {/* --- MODALE MESSAGERIE AVEC L'ADMINISTRATION --- */}
       <AnimatePresence>
