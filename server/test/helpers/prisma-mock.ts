@@ -17,7 +17,7 @@ export function createPrismaMock() {
     },
     historique_statuts: { findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
     factures: { create: vi.fn() },
-    boutiques: { findMany: vi.fn(), create: vi.fn() },
+    boutiques: { findMany: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
     $transaction: vi.fn()
   };
 

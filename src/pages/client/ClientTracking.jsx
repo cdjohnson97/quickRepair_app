@@ -1,13 +1,18 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { apiClient } from '../../apiClient';
-import { FiSearch, FiSmartphone, FiCheckCircle, FiClock, FiAlertCircle, FiMessageSquare, FiLoader, FiCheck } from 'react-icons/fi';
+import Brand from '../../components/Brand';
+import { FiSearch, FiSmartphone, FiCheckCircle, FiClock, FiAlertCircle, FiMessageSquare, FiLoader, FiCheck, FiArrowLeft } from 'react-icons/fi';
 import { motion, AnimatePresence } from 'framer-motion';
 import Swal from 'sweetalert2';
 import { jsPDF } from 'jspdf';
 import { getStatusBorderBadgeColor as getStatusBadgeColor } from '../../constants/statuts';
 
 export default function ClientTracking() {
-  const [trackingNumber, setTrackingNumber] = useState('');
+  // Numéro saisi sur la page d'accueil : /client?numero=QR-12345
+  const [searchParams] = useSearchParams();
+  const initialNumber = (searchParams.get('numero') || '').trim().toUpperCase();
+  const [trackingNumber, setTrackingNumber] = useState(initialNumber);
   const [repairData, setRepairData] = useState(null);
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -34,9 +39,13 @@ export default function ClientTracking() {
     doc.save(`Facture_${rep.numero_suivi}.pdf`);
   };
 
-  const handleSearch = async (e) => {
+  const handleSearch = (e) => {
     e.preventDefault();
-    if (!trackingNumber.trim()) return;
+    search(trackingNumber);
+  };
+
+  const search = async (numero) => {
+    if (!numero.trim()) return;
 
     setLoading(true);
     setError('');
@@ -49,7 +58,7 @@ export default function ClientTracking() {
       // Recherche publique servie par le backend NestJS (module Réparations) — pas de
       // session requise, comme l'ancienne requête Supabase directe.
       const { historique_statuts, ...repData } = (
-        await apiClient.get(`/reparations/track/${encodeURIComponent(trackingNumber.trim())}`)
+        await apiClient.get(`/reparations/track/${encodeURIComponent(numero.trim())}`)
       ).data;
 
       setRepairData(repData);
@@ -79,9 +88,27 @@ export default function ClientTracking() {
     }
   };
 
+  // Lance la recherche directement quand on arrive depuis la page d'accueil avec un numéro.
+  // La ref évite une double recherche (StrictMode exécute les effets deux fois en développement).
+  const autoSearched = useRef(false);
+  useEffect(() => {
+    if (!initialNumber || autoSearched.current) return;
+    autoSearched.current = true;
+    search(initialNumber);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- une seule fois, au chargement
+  }, []);
+
   return (
-    <div className="min-h-[calc(100vh-76px)] bg-slate-50 dark:bg-slate-950 flex flex-col items-center py-12 px-4 font-sans">
-      
+    <div className="min-h-[calc(100vh-76px)] bg-slate-50 dark:bg-slate-950 flex flex-col items-center pb-12 px-4 font-sans">
+      <header className="w-full max-w-4xl flex items-center justify-between py-6 mb-6">
+        <Link to="/" aria-label="FiXeo — retour à l'accueil">
+          <Brand className="text-2xl text-slate-900 dark:text-white" />
+        </Link>
+        <Link to="/" className="flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-sky-400 transition">
+          <FiArrowLeft /> Accueil
+        </Link>
+      </header>
+
       {/* --- Section Recherche --- */}
       <div className="max-w-xl w-full text-center mb-12">
         <motion.h1 initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="text-4xl font-extrabold text-slate-800 dark:text-slate-100 mb-4 tracking-tight">

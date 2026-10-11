@@ -18,7 +18,8 @@ import {
   FiMessageSquare,
   FiList,
   FiSearch,
-  FiChevronRight
+  FiChevronRight,
+  FiEdit2
 } from 'react-icons/fi';
 import { motion, AnimatePresence } from 'framer-motion';
 import Swal from 'sweetalert2';
@@ -33,16 +34,7 @@ import { playNotificationSound } from '../../utils/notificationSound';
 import { fetchEventsForEmployees } from '../../utils/calendarEvents';
 import { getStatusLine } from '../../utils/statusLine';
 
-import L from 'leaflet';
-import icon from 'leaflet/dist/images/marker-icon.png';
-import iconShadow from 'leaflet/dist/images/marker-shadow.png';
-let DefaultIcon = L.icon({ iconUrl: icon, shadowUrl: iconShadow, iconAnchor: [12, 41] });
-L.Marker.prototype.options.icon = DefaultIcon;
-
-// Fond de carte OpenStreetMap : gratuit et sans clé API (les tuiles CARTO en exigent une désormais).
-// L'attribution est obligatoire selon la politique d'usage d'OpenStreetMap.
-const TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-const TILE_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+import { TILE_URL, TILE_ATTRIBUTION } from '../../utils/leafletSetup';
 
 function ChangeView({ center, zoom }) {
   const map = useMap();
@@ -60,6 +52,16 @@ function LocationPicker({ onPick }) {
   });
   return null;
 }
+
+const EMPTY_BOUTIQUE = {
+  nom: '',
+  ville: '',
+  adresse: '',
+  telephone: '',
+  email_contact: '',
+  latitude: 48.8566,
+  longitude: 2.3522
+};
 
 export default function AdminDashboard() {
   const { userData } = useAuth();
@@ -91,13 +93,9 @@ export default function AdminDashboard() {
     password: ''
   });
 
-  const [newBoutique, setNewBoutique] = useState({
-    nom: '',
-    ville: '',
-    adresse: '',
-    latitude: 48.8566,
-    longitude: 2.3522
-  });
+  // Formulaire boutique, partagé entre création et modification (editingBoutiqueId = null : création).
+  const [newBoutique, setNewBoutique] = useState(EMPTY_BOUTIQUE);
+  const [editingBoutiqueId, setEditingBoutiqueId] = useState(null);
   const [geocoding, setGeocoding] = useState(false);
 
   useEffect(() => {
@@ -357,17 +355,48 @@ export default function AdminDashboard() {
     }
   };
 
-  // --- CRÉATION DE BOUTIQUE ---
-  const handleAddBoutique = async (e) => {
+  // --- CRÉATION / MODIFICATION DE BOUTIQUE ---
+  const openAddBoutique = () => {
+    setEditingBoutiqueId(null);
+    setNewBoutique(EMPTY_BOUTIQUE);
+    setIsAddBoutiqueModalOpen(true);
+  };
+
+  const openEditBoutique = (boutique) => {
+    setEditingBoutiqueId(boutique.id_boutique);
+    setNewBoutique({
+      nom: boutique.nom || '',
+      ville: boutique.ville || '',
+      adresse: boutique.adresse || '',
+      telephone: boutique.telephone || '',
+      email_contact: boutique.email_contact || '',
+      latitude: boutique.latitude ?? EMPTY_BOUTIQUE.latitude,
+      longitude: boutique.longitude ?? EMPTY_BOUTIQUE.longitude
+    });
+    setIsAddBoutiqueModalOpen(true);
+  };
+
+  const handleSaveBoutique = async (e) => {
     e.preventDefault();
+    // Téléphone et e-mail sont facultatifs : un champ vide est envoyé à null (et efface l'ancienne valeur).
+    const payload = {
+      ...newBoutique,
+      telephone: newBoutique.telephone.trim() || null,
+      email_contact: newBoutique.email_contact.trim() || null
+    };
     try {
-      await apiClient.post('/boutiques', newBoutique);
+      if (editingBoutiqueId) {
+        const { data } = await apiClient.patch(`/boutiques/${editingBoutiqueId}`, payload);
+        setSelectedBoutique((prev) => (prev?.id_boutique === data.id_boutique ? data : prev));
+      } else {
+        await apiClient.post('/boutiques', payload);
+      }
       setIsAddBoutiqueModalOpen(false);
-      setNewBoutique({ nom: '', ville: '', adresse: '', latitude: 48.8566, longitude: 2.3522 });
       fetchBoutiques();
-      Swal.fire('Boutique créée', '', 'success');
+      Swal.fire(editingBoutiqueId ? 'Boutique modifiée' : 'Boutique créée', '', 'success');
     } catch (error) {
-      Swal.fire('Erreur', error.response?.data?.message || error.message, 'error');
+      const message = error.response?.data?.message || error.message;
+      Swal.fire('Erreur', Array.isArray(message) ? message.join('<br>') : message, 'error');
     }
   };
 
@@ -414,7 +443,7 @@ export default function AdminDashboard() {
 
         {/* Bouton création boutique */}
         <button
-          onClick={() => setIsAddBoutiqueModalOpen(true)}
+          onClick={openAddBoutique}
           className="absolute bottom-6 left-6 z-[1000] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 px-4 py-2 rounded-xl shadow-md flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all font-semibold text-sm"
         >
           <FiPlus className="text-blue-600" /> Ajouter une boutique
@@ -508,10 +537,25 @@ export default function AdminDashboard() {
               >
                 <FiX size={20} />
               </button>
-              <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">{selectedBoutique.nom}</h2>
+              <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 pr-8">{selectedBoutique.nom}</h2>
               <p className="text-xs text-slate-500 flex items-center gap-1 mt-1">
                 <FiMapPin /> {selectedBoutique.adresse}, {selectedBoutique.ville}
               </p>
+              {/* Coordonnées affichées sur la page d'accueil publique (boutons Appeler / Écrire) */}
+              <div className="mt-2 space-y-0.5 text-xs">
+                <p className={`flex items-center gap-1 ${selectedBoutique.telephone ? 'text-slate-500' : 'text-amber-600'}`}>
+                  <FiPhone /> {selectedBoutique.telephone || 'Téléphone non renseigné'}
+                </p>
+                <p className={`flex items-center gap-1 ${selectedBoutique.email_contact ? 'text-slate-500' : 'text-amber-600'}`}>
+                  <FiMail /> {selectedBoutique.email_contact || 'E-mail non renseigné'}
+                </p>
+              </div>
+              <button
+                onClick={() => openEditBoutique(selectedBoutique)}
+                className="mt-3 text-blue-600 flex items-center gap-1 text-xs font-bold hover:underline"
+              >
+                <FiEdit2 /> Modifier la boutique
+              </button>
             </div>
 
             {/* Statistiques rapides */}
@@ -728,16 +772,16 @@ export default function AdminDashboard() {
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: 20, opacity: 0 }}
-              className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-xl overflow-hidden"
+              className="bg-white dark:bg-slate-800 w-full max-w-sm max-h-[90vh] overflow-y-auto rounded-2xl shadow-xl"
             >
               <div className="p-5 border-b dark:border-slate-700 font-bold text-slate-800 dark:text-slate-100 flex justify-between items-center">
-                <span>Nouvelle boutique</span>
+                <span>{editingBoutiqueId ? 'Modifier la boutique' : 'Nouvelle boutique'}</span>
                 <button onClick={() => setIsAddBoutiqueModalOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
                   <FiX size={18} />
                 </button>
               </div>
 
-              <form onSubmit={handleAddBoutique} className="p-6 space-y-4 text-sm">
+              <form onSubmit={handleSaveBoutique} className="p-6 space-y-4 text-sm">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-400 mb-1 uppercase">Nom</label>
                   <input
@@ -768,6 +812,34 @@ export default function AdminDashboard() {
                       className="w-full border dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded-lg p-2 outline-none focus:border-blue-500"
                       value={newBoutique.adresse}
                       onChange={(e) => setNewBoutique({ ...newBoutique, adresse: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                {/* Facultatifs, mais affichés aux clients sur la page d'accueil (« Contacter le service ») */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label htmlFor="boutique-telephone" className="block text-[11px] font-bold text-slate-400 mb-1 uppercase">Téléphone</label>
+                    <input
+                      id="boutique-telephone"
+                      type="tel"
+                      maxLength={20}
+                      placeholder="01 23 45 67 89"
+                      className="w-full border dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded-lg p-2 outline-none focus:border-blue-500"
+                      value={newBoutique.telephone}
+                      onChange={(e) => setNewBoutique({ ...newBoutique, telephone: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="boutique-email" className="block text-[11px] font-bold text-slate-400 mb-1 uppercase">E-mail</label>
+                    <input
+                      id="boutique-email"
+                      type="email"
+                      maxLength={100}
+                      placeholder="paris@fixeo.fr"
+                      className="w-full border dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded-lg p-2 outline-none focus:border-blue-500"
+                      value={newBoutique.email_contact}
+                      onChange={(e) => setNewBoutique({ ...newBoutique, email_contact: e.target.value })}
                     />
                   </div>
                 </div>

@@ -4,6 +4,14 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Défilement doux vers les ancres de la page d'accueil (#services, #contact…),
+   sauf si l'utilisateur a demandé à réduire les animations. */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
 /* SweetAlert2 doit toujours passer au-dessus de nos modales (certaines sont en z-[2000]/z-[3000]) */
 .swal2-container {
   z-index: 9999 !important;

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { PresenceProvider, useOnlineStatus } from './context/PresenceContext';
@@ -13,6 +13,7 @@ import ManagerDashboard from './pages/manager/ManagerDashboard';
 import AdminDashboard from './pages/admin/AdminDashboard'; // À ajouter en haut
 import TechDashboard from './pages/technicien/TechDashboard';
 import ClientTracking from './pages/client/ClientTracking';
+import Home from './pages/home/Home';
 import { FiSun, FiMoon, FiCalendar, FiX } from 'react-icons/fi';
 import Avatar from './components/Avatar';
 import ProfileModal from './components/ProfileModal';
@@ -161,7 +162,7 @@ function App() {
           <ThemeToggle />
 
           <Routes>
-            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login />} />
 
             {/* ROUTES PROTÉGÉES ! */}
