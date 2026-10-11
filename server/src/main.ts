@@ -1,12 +1,11 @@
-import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module.js';
+import { configureApp } from './app.setup.js';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  app.enableCors({ origin: process.env.CORS_ORIGIN ?? 'http://localhost:5173', credentials: true });
-  app.setGlobalPrefix('api');
-  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  configureApp(app);
   await app.listen(process.env.PORT ?? 3000);
 }
 await bootstrap();
