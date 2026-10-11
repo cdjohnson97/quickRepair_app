@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>FiXeo</title>
+  <!-- Le « X » de FiXeo dont un bras est une clé (réparation), dans le dégradé du composant Brand -->
+  <defs>
+    <linearGradient id="x" x1="12" y1="12" x2="50" y2="50" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7dd3fc"/>
+      <stop offset="1" stop-color="#3b82f6"/>
+    </linearGradient>
+    <!-- Mâchoire de la clé : entaille dans la tête -->
+    <mask id="jaw" maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64">
+      <rect width="64" height="64" fill="#fff"/>
+      <path d="M19 19 7 7" stroke="#000" stroke-width="7"/>
+    </mask>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="#0f172a"/>
+  <g mask="url(#jaw)">
+    <circle cx="19" cy="19" r="10" fill="url(#x)"/>
+    <path d="M22 22 46 46" stroke="url(#x)" stroke-width="9" stroke-linecap="round"/>
+  </g>
+  <path d="M45 19 19 45" stroke="url(#x)" stroke-width="6" stroke-linecap="round"/>
+</svg>
