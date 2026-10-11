@@ -12,13 +12,13 @@ Le projet doit obligatoirement couvrir 8 des 11 compétences (marquées \* ci-de
 |---|---|---|
 | 1 | Installer et configurer son environnement de travail | ✅ conteneurs Docker pour l'API et le front |
 | 1 | Développer des interfaces utilisateur\* | 🟡 pas de tests front, pas de maquettes, RGPD/RGAA quasi absents |
-| 1 | Développer des composants métier\* | ✅ NestJS, JWT, bcrypt, guards, validation, 112 tests unitaires |
+| 1 | Développer des composants métier\* | ✅ NestJS, JWT, bcrypt, guards, validation, helmet, limitation de débit, 119 tests unitaires |
 | 1 | Contribuer à la gestion d'un projet informatique\* | ❌ aucune trace de planification |
 | 2 | Analyser les besoins et maquetter une application\* | ❌ pas d'expression des besoins ni de maquettes |
 | 2 | Définir l'architecture logicielle\* | 🟡 multicouche OK, mais le front contourne l'API ; éco-conception absente |
 | 2 | Concevoir et mettre en place une BDD relationnelle\* | 🟡 MCD/MLD faits ; manque script SQL, base de test, confidentialité |
 | 2 | Développer des composants d'accès aux données SQL **et NoSQL**\* | ❌ aucun NoSQL dans les projets actifs |
-| 3 | Préparer et exécuter les plans de tests\* | 🟡 112 tests unitaires + 34 e2e ; pas de plan de tests écrit |
+| 3 | Préparer et exécuter les plans de tests\* | 🟡 119 tests unitaires + 39 e2e ; pas de plan de tests écrit |
 | 3 | Préparer et documenter le déploiement | 🟡 Docker + compose OK ; reste procédure et mise en ligne |
 | 3 | Contribuer à la mise en production (DevOps) | 🟡 CI GitHub Actions OK (lint, tests, build, images GHCR) ; reste le déploiement continu |
 
@@ -75,8 +75,8 @@ Le projet doit obligatoirement couvrir 8 des 11 compétences (marquées \* ci-de
 - [ ] À partir de maintenant : GitHub Projects (backlog), branches + pull requests, commits plus petits.
 
 ### 10. Renforcement de l'API
-- [ ] `helmet` (en-têtes HTTP de sécurité).
-- [ ] Limitation de débit sur `/auth/login` (`@nestjs/throttler`).
+- [x] `helmet` (en-têtes HTTP de sécurité) : `server/src/app.setup.ts`, testé dans `server/test/security.e2e-spec.ts`.
+- [x] Limitation de débit (`@nestjs/throttler`, `server/src/security/security.module.ts`) : 5 connexions/min par IP puis blocage 5 min, 20 recherches/min sur le suivi public, 100 requêtes/min ailleurs.
 - [ ] Veille OWASP Top 10 documentée pour le dossier projet.
 
 ### Notifications (bugs relevés le 2026-10-09)

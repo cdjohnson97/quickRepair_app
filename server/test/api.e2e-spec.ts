@@ -1,4 +1,5 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { ConfigModule } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
@@ -12,12 +13,14 @@ import { PrismaService } from '../src/prisma/prisma.service.js';
 import { ReparationsGateway } from '../src/reparations/reparations.gateway.js';
 import { PushService } from '../src/notifications/push.service.js';
 import { ReparationsModule } from '../src/reparations/reparations.module.js';
+import { configureApp } from '../src/app.setup.js';
 import { createPrismaMock, PrismaMock } from './helpers/prisma-mock.js';
 
 // Tests HTTP de bout en bout de la couche API : vraies routes, vrais guards (JWT + rôles),
 // vrai ValidationPipe et vraie signature JWT. Seuls Prisma et la passerelle Socket.IO sont
 // simulés — aucun accès à la base Supabase (le ConfigModule ignore volontairement server/.env).
-// Le préfixe global et le ValidationPipe reproduisent main.ts.
+// La configuration HTTP est celle de main.ts (configureApp). La limitation de débit
+// (SecurityModule) est testée à part dans security.e2e-spec.ts.
 
 const JWT_SECRET = 'secret-de-test-e2e';
 const PASSWORD = 'motdepasse-solide';
@@ -64,9 +67,8 @@ describe('API (e2e)', () => {
       .useValue(push)
       .compile();
 
-    app = moduleRef.createNestApplication();
-    app.setGlobalPrefix('api');
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    app = moduleRef.createNestApplication<NestExpressApplication>();
+    configureApp(app as NestExpressApplication);
     await app.init();
     jwt = app.get(JwtService);
   });

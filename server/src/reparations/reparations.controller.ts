@@ -1,5 +1,7 @@
 import { Body, Controller, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
+import { RATE_LIMITS } from '../security/security.module.js';
 import { RolesGuard } from '../common/guards/roles.guard.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
 import { ReparationsService } from './reparations.service.js';
@@ -12,6 +14,7 @@ export class ReparationsController {
   constructor(private reparationsService: ReparationsService) {}
 
   // Public — équivalent de ClientTracking.jsx (recherche par n° de suivi, sans session).
+  @Throttle(RATE_LIMITS.track)
   @Get('track/:numeroSuivi')
   track(@Param('numeroSuivi') numeroSuivi: string) {
     return this.reparationsService.trackByNumero(numeroSuivi);
