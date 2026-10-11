@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { motion, useReducedMotion } from 'framer-motion';
+import { motion, AnimatePresence, useInView, useReducedMotion } from 'framer-motion';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import {
   FiSmartphone, FiTablet, FiMonitor, FiBatteryCharging, FiCpu, FiBell, FiSearch, FiArrowRight,
@@ -30,14 +30,18 @@ const STEPS = [
   { Icon: FiCheckCircle, title: 'Récupérez-le', text: 'Votre appareil est prêt : passez le chercher en boutique et téléchargez votre facture.' }
 ];
 
-// Aperçu illustratif du suivi dans l'en-tête (pas de vraie donnée).
+// Aperçu illustratif du suivi dans l'en-tête (pas de vraie donnée). `id` = id_statut, pour la couleur.
 const DEMO_TIMELINE = [
-  { id: 1, label: 'Déposé', done: true },
-  { id: 2, label: 'Diagnostic', done: true },
-  { id: 3, label: 'Devis accepté', done: true },
-  { id: 5, label: 'En cours de réparation', current: true },
+  { id: 1, label: 'Déposé' },
+  { id: 2, label: 'Diagnostic' },
+  { id: 3, label: 'Devis accepté' },
+  { id: 5, label: 'En cours de réparation' },
   { id: 7, label: 'Prête à récupérer' }
 ];
+const STEP_DURATION = 1800; // ms passées sur chaque étape
+const FINAL_PAUSE = 3000; // ms sur l'état « terminé » avant de recommencer
+const FILL_DURATION = 0.4; // s : remplissage du trait vers l'étape suivante
+const PENDING_COLOR = 'rgba(255,255,255,0.1)';
 
 const hasCoords = (b) => b.latitude != null && b.longitude != null;
 const telHref = (tel) => `tel:${tel.replace(/[^\d+]/g, '')}`;
@@ -97,37 +101,136 @@ function SiteHeader() {
   );
 }
 
+// Une étape de l'aperçu. Quand l'étape précédente se valide, le trait qui y mène se remplit,
+// puis cette pastille s'allume (après FILL_DURATION) : chaque étape « passe la main » à la suivante.
+function TrackingStep({ step, status, isLast, tag }) {
+  const reduceMotion = useReducedMotion();
+  const color = status === 'pending' ? PENDING_COLOR : STATUS_COLORS[step.id];
+
+  return (
+    <li className="relative flex items-center gap-3">
+      {!isLast && (
+        <span className="absolute left-[15px] top-8 h-5 w-0.5 overflow-hidden rounded-full bg-white/10">
+          <motion.span
+            className="block h-full w-full origin-top"
+            style={{ backgroundColor: STATUS_COLORS[step.id] }}
+            initial={false}
+            animate={{ scaleY: status === 'done' ? 1 : 0 }}
+            transition={{ duration: status === 'done' ? FILL_DURATION : 0.2, ease: 'easeInOut' }}
+          />
+        </span>
+      )}
+
+      <motion.span
+        className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white"
+        initial={false}
+        animate={status === 'current' ? { backgroundColor: color, scale: [0.6, 1.2, 1] } : { backgroundColor: color, scale: 1 }}
+        transition={{ duration: 0.45, delay: status === 'current' ? FILL_DURATION : 0 }}
+      >
+        {status === 'current' && !reduceMotion && (
+          <motion.span
+            className="absolute inset-0 rounded-full"
+            style={{ backgroundColor: color }}
+            initial={{ scale: 1, opacity: 0 }}
+            animate={{ scale: [1, 1.7], opacity: [0.6, 0] }}
+            transition={{ duration: 1.6, repeat: Infinity, ease: 'easeOut', delay: FILL_DURATION + 0.3 }}
+          />
+        )}
+        {/* Icônes superposées : la coche remplace l'horloge sans attendre la fin de sa sortie */}
+        <AnimatePresence initial={false}>
+          {status === 'done' && (
+            <motion.span
+              key="done"
+              className="absolute inset-0 flex items-center justify-center"
+              initial={{ scale: 0, rotate: -90 }}
+              animate={{ scale: 1, rotate: 0 }}
+              exit={{ scale: 0 }}
+            >
+              <FiCheck />
+            </motion.span>
+          )}
+          {status === 'current' && (
+            <motion.span
+              key="current"
+              className="absolute inset-0 flex items-center justify-center"
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0 }}
+              transition={{ delay: FILL_DURATION }}
+            >
+              <FiClock />
+            </motion.span>
+          )}
+        </AnimatePresence>
+      </motion.span>
+
+      <motion.span
+        initial={false}
+        animate={{ color: status === 'pending' ? 'rgba(219,234,254,0.5)' : '#ffffff' }}
+        transition={{ duration: 0.3, delay: status === 'current' ? FILL_DURATION : 0 }}
+        className="font-medium"
+      >
+        {step.label}
+      </motion.span>
+
+      {/* L'étiquette glisse d'une étape à l'autre (layoutId) */}
+      {tag && (
+        <motion.span layoutId="tracking-now" className="ml-auto text-xs font-semibold text-sky-300" transition={{ duration: 0.35 }}>
+          {tag}
+        </motion.span>
+      )}
+    </li>
+  );
+}
+
 function TrackingPreview() {
   const reduceMotion = useReducedMotion();
+  const ref = useRef(null);
+  // On n'anime que si l'aperçu est visible (économie de calcul quand on a défilé plus bas).
+  const inView = useInView(ref, { amount: 0.3 });
+  const total = DEMO_TIMELINE.length;
+  const [active, setActive] = useState(0); // index de l'étape en cours ; total = tout est terminé
+  // Sans animation : on montre un état intermédiaire figé.
+  const shown = reduceMotion ? 3 : active;
+
+  useEffect(() => {
+    if (reduceMotion || !inView) return;
+    const id = setTimeout(() => setActive((a) => (a === total ? 0 : a + 1)), active === total ? FINAL_PAUSE : STEP_DURATION);
+    return () => clearTimeout(id);
+  }, [active, inView, reduceMotion, total]);
+
+  const statusOf = (i) => (i < shown ? 'done' : i === shown ? 'current' : 'pending');
+  const finished = shown === total;
+
   return (
-    <div className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl backdrop-blur-sm" aria-hidden="true">
-      <div className="mb-5 flex items-center justify-between">
+    <div ref={ref} className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl backdrop-blur-sm" aria-hidden="true">
+      <div className="mb-4 flex items-center justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-widest text-blue-200/70">Exemple de suivi</p>
           <p className="mt-1 font-mono text-lg font-bold text-white">QR-48213</p>
         </div>
         <span className="rounded-full bg-blue-500/20 px-3 py-1 text-xs font-semibold text-sky-300 ring-1 ring-sky-400/30">iPhone 13</span>
       </div>
-      <ol className="space-y-4">
-        {DEMO_TIMELINE.map((step) => (
-          <li key={step.id} className="flex items-center gap-3">
-            <span
-              className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white"
-              style={{ backgroundColor: step.done || step.current ? STATUS_COLORS[step.id] : 'rgba(255,255,255,0.1)' }}
-            >
-              {step.current && !reduceMotion && (
-                <motion.span
-                  className="absolute inset-0 rounded-full"
-                  style={{ backgroundColor: STATUS_COLORS[step.id] }}
-                  animate={{ scale: [1, 1.7], opacity: [0.6, 0] }}
-                  transition={{ duration: 1.8, repeat: Infinity, ease: 'easeOut' }}
-                />
-              )}
-              {step.done ? <FiCheck className="relative" /> : step.current ? <FiClock className="relative" /> : null}
-            </span>
-            <span className={step.done || step.current ? 'font-medium text-white' : 'text-blue-100/50'}>{step.label}</span>
-            {step.current && <span className="ml-auto text-xs font-semibold text-sky-300">En ce moment</span>}
-          </li>
+
+      {/* Barre de progression globale */}
+      <div className="mb-5 h-1 overflow-hidden rounded-full bg-white/10">
+        <motion.div
+          className="h-full rounded-full bg-gradient-to-r from-sky-400 to-emerald-400"
+          initial={false}
+          animate={{ width: `${(shown / total) * 100}%` }}
+          transition={{ duration: shown === 0 ? 0.3 : FILL_DURATION + 0.2, ease: 'easeInOut' }}
+        />
+      </div>
+
+      <ol className="space-y-5">
+        {DEMO_TIMELINE.map((step, i) => (
+          <TrackingStep
+            key={step.id}
+            step={step}
+            status={statusOf(i)}
+            isLast={i === total - 1}
+            tag={i === Math.min(shown, total - 1) ? (finished ? 'Terminé' : 'En ce moment') : null}
+          />
         ))}
       </ol>
     </div>
