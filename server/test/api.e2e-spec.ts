@@ -438,6 +438,26 @@ describe('API (e2e)', () => {
       expect(res.body[0].longitude).toBe(4.8357);
     });
 
+    it('GET /public : accessible sans token, colonnes publiques uniquement', async () => {
+      prisma.boutiques.findMany.mockResolvedValue([
+        {
+          id_boutique: 1,
+          nom: 'FiXeo Lyon',
+          ville: 'Lyon',
+          telephone: '0400000000',
+          latitude: new Prisma.Decimal('45.76400000'),
+          longitude: new Prisma.Decimal('4.83570000')
+        }
+      ]);
+
+      const res = await request(app.getHttpServer()).get('/api/boutiques/public').expect(200);
+
+      expect(res.body[0]).toMatchObject({ nom: 'FiXeo Lyon', latitude: 45.764, longitude: 4.8357 });
+      const [args] = prisma.boutiques.findMany.mock.calls[0];
+      expect(args.select).not.toHaveProperty('employes');
+      expect(args.select).not.toHaveProperty('reparations');
+    });
+
     it.each<Role>(['Responsable', 'Technicien'])('POST : 403 pour le rôle %s', async (role) => {
       await request(app.getHttpServer())
         .post('/api/boutiques')
@@ -474,6 +494,72 @@ describe('API (e2e)', () => {
 
       expect(res.body).toEqual({ id_boutique: 9, nom: 'Paris', latitude: 48.8566, longitude: null });
       expect(prisma.boutiques.create).toHaveBeenCalledWith({ data: { nom: 'Paris', latitude: 48.8566 } });
+    });
+
+    it('POST : 400 pour un e-mail ou un téléphone invalide', async () => {
+      const auth = await bearer('Administrateur');
+      await request(app.getHttpServer())
+        .post('/api/boutiques')
+        .set('Authorization', auth)
+        .send({ nom: 'Paris', email_contact: 'pas-un-email' })
+        .expect(400);
+      await request(app.getHttpServer())
+        .post('/api/boutiques')
+        .set('Authorization', auth)
+        .send({ nom: 'Paris', telephone: '<script>' })
+        .expect(400);
+      expect(prisma.boutiques.create).not.toHaveBeenCalled();
+    });
+
+    it('PATCH : 401 sans token, 403 pour un responsable', async () => {
+      await request(app.getHttpServer()).patch('/api/boutiques/1').send({ telephone: '0100000000' }).expect(401);
+      await request(app.getHttpServer())
+        .patch('/api/boutiques/1')
+        .set('Authorization', await bearer('Responsable'))
+        .send({ telephone: '0100000000' })
+        .expect(403);
+      expect(prisma.boutiques.update).not.toHaveBeenCalled();
+    });
+
+    it('PATCH : 400 pour un identifiant non numérique ou un nom vidé', async () => {
+      const auth = await bearer('Administrateur');
+      await request(app.getHttpServer()).patch('/api/boutiques/abc').set('Authorization', auth).send({}).expect(400);
+      await request(app.getHttpServer()).patch('/api/boutiques/1').set('Authorization', auth).send({ nom: '' }).expect(400);
+      expect(prisma.boutiques.update).not.toHaveBeenCalled();
+    });
+
+    it('PATCH : 404 pour une boutique inexistante', async () => {
+      prisma.boutiques.findUnique.mockResolvedValue(null);
+
+      await request(app.getHttpServer())
+        .patch('/api/boutiques/999')
+        .set('Authorization', await bearer('Administrateur'))
+        .send({ telephone: '0100000000' })
+        .expect(404);
+    });
+
+    it('PATCH : 200 pour un administrateur, champs inconnus ignorés', async () => {
+      prisma.boutiques.findUnique.mockResolvedValue({ id_boutique: 1, nom: 'Lyon' });
+      prisma.boutiques.update.mockResolvedValue({
+        id_boutique: 1,
+        nom: 'Lyon',
+        telephone: '04 00 00 00 00',
+        email_contact: 'lyon@fixeo.fr',
+        latitude: null,
+        longitude: null
+      });
+
+      const res = await request(app.getHttpServer())
+        .patch('/api/boutiques/1')
+        .set('Authorization', await bearer('Administrateur'))
+        .send({ telephone: '04 00 00 00 00', email_contact: 'lyon@fixeo.fr', id_boutique: 42 })
+        .expect(200);
+
+      expect(res.body.email_contact).toBe('lyon@fixeo.fr');
+      expect(prisma.boutiques.update).toHaveBeenCalledWith({
+        where: { id_boutique: 1 },
+        data: { telephone: '04 00 00 00 00', email_contact: 'lyon@fixeo.fr' }
+      });
     });
   });
 });
