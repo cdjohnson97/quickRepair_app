@@ -59,7 +59,7 @@ export default function NewTicketScreen({ navigation }) {
       const numeroSuivi = 'QR-' + Math.floor(Math.random() * 90000 + 10000);
       const { data: newRep, error: repErr } = await supabase
         .from('reparations')
-        .insert([{ numero_suivi: numeroSuivi, description_panne: form.description, id_statut_actuel: 1, id_appareil: newAppareil.id_appareil, id_technicien: form.id_technicien }])
+        .insert([{ numero_suivi: numeroSuivi, description_panne: form.description, id_statut_actuel: 1, id_appareil: newAppareil.id_appareil, id_technicien: form.id_technicien, id_boutique: userData.id_boutique }])
         .select()
         .single();
       if (repErr) throw repErr;

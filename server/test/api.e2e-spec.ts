@@ -90,6 +90,7 @@ describe('API (e2e)', () => {
   });
 
   describe('authentification', () => {
+    const AUTH_UUID = '00000000-0000-4000-8000-000000000007';
     const employe = {
       id_employe: 7,
       nom: 'Dupont',
@@ -120,8 +121,8 @@ describe('API (e2e)', () => {
     });
 
     it('POST /auth/login : renvoie un token et le profil public, sans données sensibles', async () => {
-      prisma.users.findFirst.mockResolvedValue({ encrypted_password: PASSWORD_HASH });
-      prisma.employes.findUnique.mockResolvedValue(employe);
+      prisma.users.findFirst.mockResolvedValue({ id: AUTH_UUID, encrypted_password: PASSWORD_HASH });
+      prisma.employes.findFirst.mockResolvedValue(employe);
 
       const res = await request(app.getHttpServer())
         .post('/api/auth/login')
@@ -134,8 +135,21 @@ describe('API (e2e)', () => {
       expect(res.body.user).not.toHaveProperty('mot_de_passe_hash');
     });
 
+    it('POST /auth/login : 401 si le compte n\'est rattaché à aucun employé (recherche par id_auth, pas par e-mail)', async () => {
+      prisma.users.findFirst.mockResolvedValue({ id: AUTH_UUID, encrypted_password: PASSWORD_HASH });
+      prisma.employes.findFirst.mockResolvedValue(null);
+
+      await request(app.getHttpServer())
+        .post('/api/auth/login')
+        .send({ email: employe.email, password: PASSWORD })
+        .expect(401);
+
+      expect(prisma.employes.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id_auth: AUTH_UUID } }));
+    });
+
     it('le token émis par /auth/login ouvre GET /auth/me', async () => {
-      prisma.users.findFirst.mockResolvedValue({ encrypted_password: PASSWORD_HASH });
+      prisma.users.findFirst.mockResolvedValue({ id: AUTH_UUID, encrypted_password: PASSWORD_HASH });
+      prisma.employes.findFirst.mockResolvedValue(employe);
       prisma.employes.findUnique.mockResolvedValue(employe);
 
       const login = await request(app.getHttpServer())

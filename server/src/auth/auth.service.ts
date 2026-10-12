@@ -34,7 +34,7 @@ export class AuthService {
   async login({ email, password }: LoginDto) {
     const authUser = await this.prisma.users.findFirst({
       where: { email },
-      select: { encrypted_password: true }
+      select: { id: true, encrypted_password: true }
     });
     if (!authUser?.encrypted_password) {
       throw new UnauthorizedException('Identifiants incorrects.');
@@ -45,8 +45,11 @@ export class AuthService {
       throw new UnauthorizedException('Identifiants incorrects.');
     }
 
-    const employe = await this.prisma.employes.findUnique({
-      where: { email },
+    // L'employé est retrouvé par le compte (id_auth), jamais par l'e-mail : les inscriptions
+    // Supabase sont ouvertes, et un inconnu pourrait sinon créer un compte avec l'e-mail d'un
+    // employé qui n'en a pas encore et obtenir un jeton à son nom. Même règle que le RLS.
+    const employe = await this.prisma.employes.findFirst({
+      where: { id_auth: authUser.id },
       select: EMPLOYE_PUBLIC_FIELDS
     });
     if (!employe) {
