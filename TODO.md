@@ -25,12 +25,14 @@ Le projet doit obligatoirement couvrir 8 des 11 compétences (marquées \* ci-de
 ## Actions
 
 ### 1. Sécurité de la base Supabase — URGENT
-- [ ] Activer le Row Level Security (RLS) sur **toutes** les tables du schéma `public`.
-- [ ] Écrire les policies par rôle (Administrateur, Responsable, Technicien) pour chaque table utilisée par le front et le mobile (`employes`, `messages`, `calendrier_evenements`, `reparations`, `clients`, `appareils`, `historique_statuts`, `statuts`, `boutiques`, `factures`, bucket `avatars`).
-- [ ] Revoir les policies existantes de `factures`.
-- [ ] Ne jamais exposer `mot_de_passe_hash` ni les données personnelles des clients côté client.
-- [ ] Tester le web et le mobile après activation (sinon les écrans cassent).
-- [ ] Documenter la faille et sa correction pour la section « veille sécurité » du dossier projet.
+- [x] Activer le Row Level Security (RLS) sur **toutes** les tables du schéma `public` (appliqué en production le 12/10/2026 : `supabase/migrations/20261012120000_activer_rls.sql`).
+- [x] Écrire les policies par rôle (Administrateur, Responsable, Technicien) pour chaque table utilisée par le front et le mobile. Bucket `avatars` : policies existantes conservées (écriture dans son propre dossier).
+- [x] Revoir les policies existantes de `factures` (règle « tout le monde » supprimée).
+- [x] Ne jamais exposer `mot_de_passe_hash` ni les données personnelles des clients côté client (mots de passe en clair effacés, `anon` sans accès, clients visibles selon le rôle).
+- [ ] Tester le web et le mobile après activation, avec un compte de chaque rôle (recette manuelle, voir `docs/securite-rls.md` §4).
+- [x] Documenter la faille et sa correction pour la section « veille sécurité » du dossier projet : `docs/securite-rls.md`.
+- [ ] Fermer les inscriptions publiques Supabase (après avoir déplacé la création de compte employé côté serveur).
+- [ ] Supprimer la colonne `employes.mot_de_passe_hash` (vide) puis `prisma db pull`.
 
 ### 2. Composant NoSQL (compétence obligatoire)
 - [ ] Ajouter un composant NoSQL dans le serveur NestJS : Redis (cache + adapter Socket.io) ou MongoDB (journal d'audit / notifications).
