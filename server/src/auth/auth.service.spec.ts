@@ -4,6 +4,7 @@ import { AuthService } from './auth.service.js';
 import { createPrismaMock, PrismaMock } from '../../test/helpers/prisma-mock.js';
 
 const PASSWORD = 'motdepasse-solide';
+const AUTH_UUID = '00000000-0000-4000-8000-000000000007';
 // Coût 4 : suffisant pour tester la vraie comparaison bcrypt sans ralentir la suite.
 const PASSWORD_HASH = bcrypt.hashSync(PASSWORD, 4);
 
@@ -38,12 +39,12 @@ describe('AuthService', () => {
       await expect(service.login({ email: EMPLOYE.email, password: PASSWORD })).rejects.toThrow(
         new UnauthorizedException('Identifiants incorrects.')
       );
-      expect(prisma.employes.findUnique).not.toHaveBeenCalled();
+      expect(prisma.employes.findFirst).not.toHaveBeenCalled();
       expect(jwt.signAsync).not.toHaveBeenCalled();
     });
 
     it('refuse un compte sans mot de passe (encrypted_password null)', async () => {
-      prisma.users.findFirst.mockResolvedValue({ encrypted_password: null });
+      prisma.users.findFirst.mockResolvedValue({ id: AUTH_UUID, encrypted_password: null });
 
       await expect(service.login({ email: EMPLOYE.email, password: PASSWORD })).rejects.toThrow(
         UnauthorizedException
@@ -52,18 +53,18 @@ describe('AuthService', () => {
     });
 
     it('refuse un mauvais mot de passe avec le même message que pour un email inconnu', async () => {
-      prisma.users.findFirst.mockResolvedValue({ encrypted_password: PASSWORD_HASH });
+      prisma.users.findFirst.mockResolvedValue({ id: AUTH_UUID, encrypted_password: PASSWORD_HASH });
 
       await expect(service.login({ email: EMPLOYE.email, password: 'mauvais' })).rejects.toThrow(
         new UnauthorizedException('Identifiants incorrects.')
       );
-      expect(prisma.employes.findUnique).not.toHaveBeenCalled();
+      expect(prisma.employes.findFirst).not.toHaveBeenCalled();
       expect(jwt.signAsync).not.toHaveBeenCalled();
     });
 
     it("refuse un compte valide qui n'est pas un employé (ex. client)", async () => {
-      prisma.users.findFirst.mockResolvedValue({ encrypted_password: PASSWORD_HASH });
-      prisma.employes.findUnique.mockResolvedValue(null);
+      prisma.users.findFirst.mockResolvedValue({ id: AUTH_UUID, encrypted_password: PASSWORD_HASH });
+      prisma.employes.findFirst.mockResolvedValue(null);
 
       await expect(service.login({ email: 'client@mail.fr', password: PASSWORD })).rejects.toThrow(
         new UnauthorizedException("Ce compte n'a pas accès à l'espace employé.")
@@ -72,8 +73,8 @@ describe('AuthService', () => {
     });
 
     it("émet un JWT dont le payload contient sub, email, role et id_boutique", async () => {
-      prisma.users.findFirst.mockResolvedValue({ encrypted_password: PASSWORD_HASH });
-      prisma.employes.findUnique.mockResolvedValue(EMPLOYE);
+      prisma.users.findFirst.mockResolvedValue({ id: AUTH_UUID, encrypted_password: PASSWORD_HASH });
+      prisma.employes.findFirst.mockResolvedValue(EMPLOYE);
 
       const result = await service.login({ email: EMPLOYE.email, password: PASSWORD });
 
@@ -86,25 +87,35 @@ describe('AuthService', () => {
       expect(result).toEqual({ access_token: 'signed.jwt.token', user: EMPLOYE });
     });
 
-    it("cherche le hash par email dans auth.users et n'en sélectionne que le mot de passe", async () => {
-      prisma.users.findFirst.mockResolvedValue({ encrypted_password: PASSWORD_HASH });
-      prisma.employes.findUnique.mockResolvedValue(EMPLOYE);
+    it("retrouve l'employé par id_auth (compte Supabase), jamais par e-mail", async () => {
+      prisma.users.findFirst.mockResolvedValue({ id: AUTH_UUID, encrypted_password: PASSWORD_HASH });
+      prisma.employes.findFirst.mockResolvedValue(EMPLOYE);
+
+      await service.login({ email: EMPLOYE.email, password: PASSWORD });
+
+      const { where } = prisma.employes.findFirst.mock.calls[0][0];
+      expect(where).toEqual({ id_auth: AUTH_UUID });
+    });
+
+    it("cherche le compte par email dans auth.users et n'en sélectionne que l'id et le hash", async () => {
+      prisma.users.findFirst.mockResolvedValue({ id: AUTH_UUID, encrypted_password: PASSWORD_HASH });
+      prisma.employes.findFirst.mockResolvedValue(EMPLOYE);
 
       await service.login({ email: EMPLOYE.email, password: PASSWORD });
 
       expect(prisma.users.findFirst).toHaveBeenCalledWith({
         where: { email: EMPLOYE.email },
-        select: { encrypted_password: true }
+        select: { id: true, encrypted_password: true }
       });
     });
 
     it('ne demande jamais mot_de_passe_hash ni id_auth pour la réponse envoyée au client', async () => {
-      prisma.users.findFirst.mockResolvedValue({ encrypted_password: PASSWORD_HASH });
-      prisma.employes.findUnique.mockResolvedValue(EMPLOYE);
+      prisma.users.findFirst.mockResolvedValue({ id: AUTH_UUID, encrypted_password: PASSWORD_HASH });
+      prisma.employes.findFirst.mockResolvedValue(EMPLOYE);
 
       await service.login({ email: EMPLOYE.email, password: PASSWORD });
 
-      const { select } = prisma.employes.findUnique.mock.calls[0][0];
+      const { select } = prisma.employes.findFirst.mock.calls[0][0];
       expect(select).toBeDefined();
       expect(select).not.toHaveProperty('mot_de_passe_hash');
       expect(select).not.toHaveProperty('id_auth');
