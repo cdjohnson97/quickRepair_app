@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiX, FiCamera } from 'react-icons/fi';
+import { FiX, FiCamera, FiShield } from 'react-icons/fi';
 import Swal from 'sweetalert2';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
@@ -99,6 +99,17 @@ export default function ProfileModal({ isOpen, onClose }) {
                 <p className="text-sm text-slate-500 dark:text-slate-400">{userData.role}</p>
               </div>
               {uploading && <p className="text-xs text-slate-400 italic">Envoi en cours...</p>}
+
+              {/* Double authentification : obligatoire, donc toujours active une fois connecté */}
+              <div className="w-full rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm dark:border-emerald-800 dark:bg-emerald-900/20">
+                <p className="flex items-center gap-2 font-semibold text-emerald-700 dark:text-emerald-300">
+                  <FiShield /> Double authentification activée
+                </p>
+                <p className="mt-1 text-xs text-emerald-700/80 dark:text-emerald-300/80">
+                  Un code de votre application d'authentification est demandé à chaque connexion.
+                  Téléphone perdu ou changé : contactez l'administrateur.
+                </p>
+              </div>
             </div>
           </motion.div>
         </div>

@@ -1,12 +1,11 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { LoginDto } from './dto/login.dto.js';
+import { SupabaseAuthClient } from './supabase-auth.client.js';
 
-// Ne jamais renvoyer mot_de_passe_hash (mots de passe en clair sur d'anciens comptes de
-// test) ni id_auth au client — cette liste explicite évite qu'un futur champ sensible
-// ajouté à la table se retrouve exposé par accident via un findUnique() sans select.
+// Ne jamais renvoyer mot_de_passe_hash ni id_auth au client — cette liste explicite évite
+// qu'un futur champ sensible ajouté à la table se retrouve exposé par accident via un
+// findUnique() sans select.
 const EMPLOYE_PUBLIC_FIELDS = {
   id_employe: true,
   nom: true,
@@ -20,40 +19,39 @@ const EMPLOYE_PUBLIC_FIELDS = {
   boutiques: { select: { nom: true, ville: true } }
 } as const;
 
-// Auth basée sur les comptes Supabase existants : le mot de passe (hash bcrypt) reste
-// dans auth.users (schéma géré par Supabase Auth, lu ici en direct via Prisma) — on ne
-// touche pas employes.mot_de_passe_hash, qui ne contient que des mots de passe en clair
-// de comptes de test et n'est pas une source fiable.
+// La connexion (mot de passe puis code 2FA) se fait auprès de Supabase Auth. L'API ne voit
+// jamais le mot de passe : elle échange une session Supabase validée, de niveau aal2
+// (mot de passe + code vérifiés), contre son propre jeton. Le 2FA est obligatoire pour tous.
 @Injectable()
 export class AuthService {
   constructor(
     private prisma: PrismaService,
-    private jwt: JwtService
+    private jwt: JwtService,
+    private supabaseAuth: SupabaseAuthClient
   ) {}
 
-  async login({ email, password }: LoginDto) {
-    const authUser = await this.prisma.users.findFirst({
-      where: { email },
-      select: { id: true, encrypted_password: true }
-    });
-    if (!authUser?.encrypted_password) {
-      throw new UnauthorizedException('Identifiants incorrects.');
+  async createSession(supabaseAccessToken: string | undefined) {
+    if (!supabaseAccessToken) {
+      throw new UnauthorizedException('Session Supabase manquante.');
     }
 
-    const passwordMatches = await bcrypt.compare(password, authUser.encrypted_password);
-    if (!passwordMatches) {
-      throw new UnauthorizedException('Identifiants incorrects.');
+    const session = await this.supabaseAuth.verifySession(supabaseAccessToken);
+    if (!session) {
+      throw new UnauthorizedException('Session invalide ou expirée.');
+    }
+    if (session.aal !== 'aal2') {
+      throw new ForbiddenException('Double authentification requise.');
     }
 
     // L'employé est retrouvé par le compte (id_auth), jamais par l'e-mail : les inscriptions
     // Supabase sont ouvertes, et un inconnu pourrait sinon créer un compte avec l'e-mail d'un
     // employé qui n'en a pas encore et obtenir un jeton à son nom. Même règle que le RLS.
     const employe = await this.prisma.employes.findFirst({
-      where: { id_auth: authUser.id },
+      where: { id_auth: session.userId },
       select: EMPLOYE_PUBLIC_FIELDS
     });
     if (!employe) {
-      throw new UnauthorizedException("Ce compte n'a pas accès à l'espace employé.");
+      throw new ForbiddenException("Ce compte n'a pas accès à l'espace employé.");
     }
 
     const payload = {

@@ -5,6 +5,7 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { configureApp } from '../src/app.setup.js';
 import { AuthModule } from '../src/auth/auth.module.js';
+import { SupabaseAuthClient } from '../src/auth/supabase-auth.client.js';
 import { PushService } from '../src/notifications/push.service.js';
 import { PrismaModule } from '../src/prisma/prisma.module.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
@@ -24,6 +25,7 @@ const TRACK_LIMIT = RATE_LIMITS.track.default.limit;
 describe('Sécurité HTTP (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaMock;
+  const supabaseAuth = { verifySession: vi.fn() };
 
   beforeAll(async () => {
     prisma = createPrismaMock();
@@ -47,6 +49,8 @@ describe('Sécurité HTTP (e2e)', () => {
       .useValue({ notifyRepairAssigned: vi.fn() })
       .overrideProvider(PushService)
       .useValue({ notifyEmployee: vi.fn() })
+      .overrideProvider(SupabaseAuthClient)
+      .useValue(supabaseAuth)
       .compile();
 
     app = moduleRef.createNestApplication<NestExpressApplication>();
@@ -60,9 +64,9 @@ describe('Sécurité HTTP (e2e)', () => {
 
   const login = (ip: string) =>
     request(app.getHttpServer())
-      .post('/api/auth/login')
+      .post('/api/auth/session')
       .set('X-Forwarded-For', ip)
-      .send({ email: 'attaquant@exemple.fr', password: 'essai-au-hasard' });
+      .set('Authorization', 'Bearer jeton-vole-ou-invente');
 
   describe('en-têtes helmet', () => {
     it('ajoute les en-têtes de sécurité et masque la technologie du serveur', async () => {
@@ -78,9 +82,10 @@ describe('Sécurité HTTP (e2e)', () => {
     });
   });
 
-  describe('POST /auth/login : anti force brute', () => {
+  describe('POST /auth/session : anti force brute', () => {
     beforeEach(() => {
-      prisma.users.findFirst.mockResolvedValue(null); // compte inconnu → 401
+      supabaseAuth.verifySession.mockReset();
+      supabaseAuth.verifySession.mockResolvedValue(null); // session invalide → 401
     });
 
     it(`accepte ${LOGIN_LIMIT} tentatives par minute, puis répond 429 avec Retry-After`, async () => {
@@ -91,8 +96,8 @@ describe('Sécurité HTTP (e2e)', () => {
 
       const blocked = await login(ip).expect(429);
       expect(Number(blocked.headers['retry-after'])).toBeGreaterThan(0);
-      // Une fois bloquée, la requête n'atteint même plus la vérification du mot de passe.
-      expect(prisma.users.findFirst).toHaveBeenCalledTimes(LOGIN_LIMIT);
+      // Une fois bloquée, la requête n'atteint même plus la vérification de la session.
+      expect(supabaseAuth.verifySession).toHaveBeenCalledTimes(LOGIN_LIMIT);
     });
 
     it("le blocage d'une adresse IP ne touche pas les autres utilisateurs", async () => {

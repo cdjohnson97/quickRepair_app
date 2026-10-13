@@ -1,6 +1,5 @@
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
-import { LoginDto } from '../auth/dto/login.dto.js';
 import { CreateBoutiqueDto } from '../boutiques/dto/create-boutique.dto.js';
 import { CreateInvoiceDto } from '../reparations/dto/create-invoice.dto.js';
 import { CreateReparationDto } from '../reparations/dto/create-reparation.dto.js';
@@ -12,31 +11,6 @@ async function invalidFields<T extends object>(cls: new () => T, payload: object
   const errors = await validate(plainToInstance(cls, payload), { whitelist: true });
   return errors.map((e) => e.property).sort();
 }
-
-describe('LoginDto', () => {
-  const valid = { email: 'jean@fixeo.fr', password: 'secret' };
-
-  it('accepte des identifiants bien formés', async () => {
-    expect(await invalidFields(LoginDto, valid)).toEqual([]);
-  });
-
-  it.each(['pas-un-email', '', 'jean@', '@fixeo.fr'])("refuse l'email %j", async (email) => {
-    expect(await invalidFields(LoginDto, { ...valid, email })).toEqual(['email']);
-  });
-
-  it('refuse un mot de passe vide ou absent', async () => {
-    expect(await invalidFields(LoginDto, { ...valid, password: '' })).toEqual(['password']);
-    expect(await invalidFields(LoginDto, { email: valid.email })).toEqual(['password']);
-  });
-
-  it("refuse un mot de passe qui n'est pas une chaîne", async () => {
-    expect(await invalidFields(LoginDto, { ...valid, password: 12345 })).toEqual(['password']);
-  });
-
-  it('signale tous les champs manquants', async () => {
-    expect(await invalidFields(LoginDto, {})).toEqual(['email', 'password']);
-  });
-});
 
 describe('CreateReparationDto', () => {
   const valid = {

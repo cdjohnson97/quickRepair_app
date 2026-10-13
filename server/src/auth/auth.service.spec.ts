@@ -1,12 +1,9 @@
-import { UnauthorizedException } from '@nestjs/common';
-import bcrypt from 'bcryptjs';
+import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { AuthService } from './auth.service.js';
 import { createPrismaMock, PrismaMock } from '../../test/helpers/prisma-mock.js';
 
-const PASSWORD = 'motdepasse-solide';
 const AUTH_UUID = '00000000-0000-4000-8000-000000000007';
-// Coût 4 : suffisant pour tester la vraie comparaison bcrypt sans ralentir la suite.
-const PASSWORD_HASH = bcrypt.hashSync(PASSWORD, 4);
+const SUPABASE_TOKEN = 'jeton.supabase.valide';
 
 const EMPLOYE = {
   id_employe: 7,
@@ -24,59 +21,70 @@ const EMPLOYE = {
 describe('AuthService', () => {
   let prisma: PrismaMock;
   let jwt: { signAsync: ReturnType<typeof vi.fn> };
+  let supabaseAuth: { verifySession: ReturnType<typeof vi.fn> };
   let service: AuthService;
 
   beforeEach(() => {
     prisma = createPrismaMock();
     jwt = { signAsync: vi.fn().mockResolvedValue('signed.jwt.token') };
-    service = new AuthService(prisma, jwt as any);
+    supabaseAuth = { verifySession: vi.fn() };
+    service = new AuthService(prisma, jwt as any, supabaseAuth as any);
   });
 
-  describe('login', () => {
-    it("refuse un email inconnu de auth.users, sans consulter la table employes", async () => {
-      prisma.users.findFirst.mockResolvedValue(null);
+  describe('createSession (2FA obligatoire)', () => {
+    it('refuse une requête sans jeton Supabase, sans rien interroger', async () => {
+      await expect(service.createSession(undefined)).rejects.toThrow(
+        new UnauthorizedException('Session Supabase manquante.')
+      );
+      expect(supabaseAuth.verifySession).not.toHaveBeenCalled();
+      expect(jwt.signAsync).not.toHaveBeenCalled();
+    });
 
-      await expect(service.login({ email: EMPLOYE.email, password: PASSWORD })).rejects.toThrow(
-        new UnauthorizedException('Identifiants incorrects.')
+    it('refuse une session invalide, expirée ou révoquée', async () => {
+      supabaseAuth.verifySession.mockResolvedValue(null);
+
+      await expect(service.createSession(SUPABASE_TOKEN)).rejects.toThrow(
+        new UnauthorizedException('Session invalide ou expirée.')
+      );
+      expect(prisma.employes.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('refuse une session au mot de passe seul (aal1) : le code 2FA est obligatoire', async () => {
+      supabaseAuth.verifySession.mockResolvedValue({ userId: AUTH_UUID, aal: 'aal1' });
+
+      await expect(service.createSession(SUPABASE_TOKEN)).rejects.toThrow(
+        new ForbiddenException('Double authentification requise.')
       );
       expect(prisma.employes.findFirst).not.toHaveBeenCalled();
       expect(jwt.signAsync).not.toHaveBeenCalled();
     });
 
-    it('refuse un compte sans mot de passe (encrypted_password null)', async () => {
-      prisma.users.findFirst.mockResolvedValue({ id: AUTH_UUID, encrypted_password: null });
-
-      await expect(service.login({ email: EMPLOYE.email, password: PASSWORD })).rejects.toThrow(
-        UnauthorizedException
-      );
-      expect(jwt.signAsync).not.toHaveBeenCalled();
-    });
-
-    it('refuse un mauvais mot de passe avec le même message que pour un email inconnu', async () => {
-      prisma.users.findFirst.mockResolvedValue({ id: AUTH_UUID, encrypted_password: PASSWORD_HASH });
-
-      await expect(service.login({ email: EMPLOYE.email, password: 'mauvais' })).rejects.toThrow(
-        new UnauthorizedException('Identifiants incorrects.')
-      );
-      expect(prisma.employes.findFirst).not.toHaveBeenCalled();
-      expect(jwt.signAsync).not.toHaveBeenCalled();
-    });
-
-    it("refuse un compte valide qui n'est pas un employé (ex. client)", async () => {
-      prisma.users.findFirst.mockResolvedValue({ id: AUTH_UUID, encrypted_password: PASSWORD_HASH });
+    it("refuse un compte 2FA valide qui n'est rattaché à aucun employé", async () => {
+      supabaseAuth.verifySession.mockResolvedValue({ userId: AUTH_UUID, aal: 'aal2' });
       prisma.employes.findFirst.mockResolvedValue(null);
 
-      await expect(service.login({ email: 'client@mail.fr', password: PASSWORD })).rejects.toThrow(
-        new UnauthorizedException("Ce compte n'a pas accès à l'espace employé.")
+      await expect(service.createSession(SUPABASE_TOKEN)).rejects.toThrow(
+        new ForbiddenException("Ce compte n'a pas accès à l'espace employé.")
       );
       expect(jwt.signAsync).not.toHaveBeenCalled();
     });
 
-    it("émet un JWT dont le payload contient sub, email, role et id_boutique", async () => {
-      prisma.users.findFirst.mockResolvedValue({ id: AUTH_UUID, encrypted_password: PASSWORD_HASH });
+    it("retrouve l'employé par id_auth (compte Supabase), jamais par e-mail", async () => {
+      supabaseAuth.verifySession.mockResolvedValue({ userId: AUTH_UUID, aal: 'aal2' });
       prisma.employes.findFirst.mockResolvedValue(EMPLOYE);
 
-      const result = await service.login({ email: EMPLOYE.email, password: PASSWORD });
+      await service.createSession(SUPABASE_TOKEN);
+
+      expect(supabaseAuth.verifySession).toHaveBeenCalledWith(SUPABASE_TOKEN);
+      const { where } = prisma.employes.findFirst.mock.calls[0][0];
+      expect(where).toEqual({ id_auth: AUTH_UUID });
+    });
+
+    it('émet un JWT dont le payload contient sub, email, role et id_boutique', async () => {
+      supabaseAuth.verifySession.mockResolvedValue({ userId: AUTH_UUID, aal: 'aal2' });
+      prisma.employes.findFirst.mockResolvedValue(EMPLOYE);
+
+      const result = await service.createSession(SUPABASE_TOKEN);
 
       expect(jwt.signAsync).toHaveBeenCalledWith({
         sub: 7,
@@ -87,33 +95,11 @@ describe('AuthService', () => {
       expect(result).toEqual({ access_token: 'signed.jwt.token', user: EMPLOYE });
     });
 
-    it("retrouve l'employé par id_auth (compte Supabase), jamais par e-mail", async () => {
-      prisma.users.findFirst.mockResolvedValue({ id: AUTH_UUID, encrypted_password: PASSWORD_HASH });
+    it('ne demande jamais mot_de_passe_hash, id_auth ni push_token pour la réponse envoyée au client', async () => {
+      supabaseAuth.verifySession.mockResolvedValue({ userId: AUTH_UUID, aal: 'aal2' });
       prisma.employes.findFirst.mockResolvedValue(EMPLOYE);
 
-      await service.login({ email: EMPLOYE.email, password: PASSWORD });
-
-      const { where } = prisma.employes.findFirst.mock.calls[0][0];
-      expect(where).toEqual({ id_auth: AUTH_UUID });
-    });
-
-    it("cherche le compte par email dans auth.users et n'en sélectionne que l'id et le hash", async () => {
-      prisma.users.findFirst.mockResolvedValue({ id: AUTH_UUID, encrypted_password: PASSWORD_HASH });
-      prisma.employes.findFirst.mockResolvedValue(EMPLOYE);
-
-      await service.login({ email: EMPLOYE.email, password: PASSWORD });
-
-      expect(prisma.users.findFirst).toHaveBeenCalledWith({
-        where: { email: EMPLOYE.email },
-        select: { id: true, encrypted_password: true }
-      });
-    });
-
-    it('ne demande jamais mot_de_passe_hash ni id_auth pour la réponse envoyée au client', async () => {
-      prisma.users.findFirst.mockResolvedValue({ id: AUTH_UUID, encrypted_password: PASSWORD_HASH });
-      prisma.employes.findFirst.mockResolvedValue(EMPLOYE);
-
-      await service.login({ email: EMPLOYE.email, password: PASSWORD });
+      await service.createSession(SUPABASE_TOKEN);
 
       const { select } = prisma.employes.findFirst.mock.calls[0][0];
       expect(select).toBeDefined();

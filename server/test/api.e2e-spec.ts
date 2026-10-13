@@ -3,10 +3,10 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { ConfigModule } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
-import bcrypt from 'bcryptjs';
 import { Prisma } from '@prisma/client';
 import request from 'supertest';
 import { AuthModule } from '../src/auth/auth.module.js';
+import { SupabaseAuthClient } from '../src/auth/supabase-auth.client.js';
 import { BoutiquesModule } from '../src/boutiques/boutiques.module.js';
 import { PrismaModule } from '../src/prisma/prisma.module.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
@@ -17,14 +17,12 @@ import { configureApp } from '../src/app.setup.js';
 import { createPrismaMock, PrismaMock } from './helpers/prisma-mock.js';
 
 // Tests HTTP de bout en bout de la couche API : vraies routes, vrais guards (JWT + rôles),
-// vrai ValidationPipe et vraie signature JWT. Seuls Prisma et la passerelle Socket.IO sont
-// simulés — aucun accès à la base Supabase (le ConfigModule ignore volontairement server/.env).
-// La configuration HTTP est celle de main.ts (configureApp). La limitation de débit
-// (SecurityModule) est testée à part dans security.e2e-spec.ts.
+// vrai ValidationPipe et vraie signature JWT. Seuls Prisma, Supabase Auth et la passerelle
+// Socket.IO sont simulés — aucun accès à Supabase (le ConfigModule ignore volontairement
+// server/.env). La configuration HTTP est celle de main.ts (configureApp). La limitation de
+// débit (SecurityModule) est testée à part dans security.e2e-spec.ts.
 
 const JWT_SECRET = 'secret-de-test-e2e';
-const PASSWORD = 'motdepasse-solide';
-const PASSWORD_HASH = bcrypt.hashSync(PASSWORD, 4);
 
 type Role = 'Administrateur' | 'Responsable' | 'Technicien';
 
@@ -34,6 +32,7 @@ describe('API (e2e)', () => {
   let jwt: JwtService;
   let gateway: { notifyRepairAssigned: ReturnType<typeof vi.fn> };
   let push: { notifyEmployee: ReturnType<typeof vi.fn> };
+  let supabaseAuth: { verifySession: ReturnType<typeof vi.fn> };
 
   const tokenFor = (role: Role, sub = 1, id_boutique: number | null = 3) =>
     jwt.signAsync({ sub, email: `user${sub}@fixeo.fr`, role, id_boutique });
@@ -45,6 +44,7 @@ describe('API (e2e)', () => {
     prisma = createPrismaMock();
     gateway = { notifyRepairAssigned: vi.fn() };
     push = { notifyEmployee: vi.fn().mockResolvedValue(true) };
+    supabaseAuth = { verifySession: vi.fn() };
 
     const moduleRef = await Test.createTestingModule({
       imports: [
@@ -65,6 +65,8 @@ describe('API (e2e)', () => {
       .useValue(gateway)
       .overrideProvider(PushService)
       .useValue(push)
+      .overrideProvider(SupabaseAuthClient)
+      .useValue(supabaseAuth)
       .compile();
 
     app = moduleRef.createNestApplication<NestExpressApplication>();
@@ -87,6 +89,7 @@ describe('API (e2e)', () => {
       typeof arg === 'function' ? arg(prisma) : Promise.all(arg as Promise<unknown>[])
     );
     gateway.notifyRepairAssigned.mockReset();
+    supabaseAuth.verifySession.mockReset();
   });
 
   describe('authentification', () => {
@@ -104,57 +107,69 @@ describe('API (e2e)', () => {
       boutiques: { nom: 'Lyon', ville: 'Lyon' }
     };
 
-    it('POST /auth/login : 400 quand le corps est invalide', async () => {
-      await request(app.getHttpServer()).post('/api/auth/login').send({ email: 'pas-un-email' }).expect(400);
-      expect(prisma.users.findFirst).not.toHaveBeenCalled();
-    });
+    const SUPABASE_TOKEN = 'jeton.supabase.de-test';
+    const session = (token?: string) => {
+      const req = request(app.getHttpServer()).post('/api/auth/session');
+      return token ? req.set('Authorization', `Bearer ${token}`) : req;
+    };
 
-    it('POST /auth/login : 401 pour un mauvais mot de passe', async () => {
-      prisma.users.findFirst.mockResolvedValue({ encrypted_password: PASSWORD_HASH });
-
-      const res = await request(app.getHttpServer())
-        .post('/api/auth/login')
-        .send({ email: employe.email, password: 'mauvais' })
-        .expect(401);
-
-      expect(res.body.message).toBe('Identifiants incorrects.');
-    });
-
-    it('POST /auth/login : renvoie un token et le profil public, sans données sensibles', async () => {
-      prisma.users.findFirst.mockResolvedValue({ id: AUTH_UUID, encrypted_password: PASSWORD_HASH });
-      prisma.employes.findFirst.mockResolvedValue(employe);
-
-      const res = await request(app.getHttpServer())
-        .post('/api/auth/login')
-        .send({ email: employe.email, password: PASSWORD })
-        .expect(201);
-
-      expect(res.body.access_token).toEqual(expect.any(String));
-      expect(res.body.user).toEqual(employe);
-      expect(JSON.stringify(res.body)).not.toContain(PASSWORD_HASH);
-      expect(res.body.user).not.toHaveProperty('mot_de_passe_hash');
-    });
-
-    it('POST /auth/login : 401 si le compte n\'est rattaché à aucun employé (recherche par id_auth, pas par e-mail)', async () => {
-      prisma.users.findFirst.mockResolvedValue({ id: AUTH_UUID, encrypted_password: PASSWORD_HASH });
-      prisma.employes.findFirst.mockResolvedValue(null);
-
+    it("POST /auth/login n'existe plus (connexion par mot de passe seul supprimée)", async () => {
       await request(app.getHttpServer())
         .post('/api/auth/login')
-        .send({ email: employe.email, password: PASSWORD })
-        .expect(401);
+        .send({ email: employe.email, password: 'motdepasse' })
+        .expect(404);
+    });
+
+    it('POST /auth/session : 401 sans jeton Supabase', async () => {
+      await session().expect(401);
+      expect(supabaseAuth.verifySession).not.toHaveBeenCalled();
+    });
+
+    it('POST /auth/session : 401 pour une session Supabase invalide ou expirée', async () => {
+      supabaseAuth.verifySession.mockResolvedValue(null);
+
+      const res = await session(SUPABASE_TOKEN).expect(401);
+
+      expect(res.body.message).toBe('Session invalide ou expirée.');
+      expect(supabaseAuth.verifySession).toHaveBeenCalledWith(SUPABASE_TOKEN);
+    });
+
+    it('POST /auth/session : 403 pour une session au mot de passe seul (aal1)', async () => {
+      supabaseAuth.verifySession.mockResolvedValue({ userId: AUTH_UUID, aal: 'aal1' });
+
+      const res = await session(SUPABASE_TOKEN).expect(403);
+
+      expect(res.body.message).toBe('Double authentification requise.');
+      expect(prisma.employes.findFirst).not.toHaveBeenCalled();
+    });
+
+    it("POST /auth/session : 403 si le compte n'est rattaché à aucun employé (recherche par id_auth)", async () => {
+      supabaseAuth.verifySession.mockResolvedValue({ userId: AUTH_UUID, aal: 'aal2' });
+      prisma.employes.findFirst.mockResolvedValue(null);
+
+      await session(SUPABASE_TOKEN).expect(403);
 
       expect(prisma.employes.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id_auth: AUTH_UUID } }));
     });
 
-    it('le token émis par /auth/login ouvre GET /auth/me', async () => {
-      prisma.users.findFirst.mockResolvedValue({ id: AUTH_UUID, encrypted_password: PASSWORD_HASH });
+    it('POST /auth/session : renvoie un token et le profil public pour une session aal2', async () => {
+      supabaseAuth.verifySession.mockResolvedValue({ userId: AUTH_UUID, aal: 'aal2' });
+      prisma.employes.findFirst.mockResolvedValue(employe);
+
+      const res = await session(SUPABASE_TOKEN).expect(201);
+
+      expect(res.body.access_token).toEqual(expect.any(String));
+      expect(res.body.user).toEqual(employe);
+      expect(res.body.user).not.toHaveProperty('mot_de_passe_hash');
+      expect(res.body.user).not.toHaveProperty('id_auth');
+    });
+
+    it('le token émis par /auth/session ouvre GET /auth/me', async () => {
+      supabaseAuth.verifySession.mockResolvedValue({ userId: AUTH_UUID, aal: 'aal2' });
       prisma.employes.findFirst.mockResolvedValue(employe);
       prisma.employes.findUnique.mockResolvedValue(employe);
 
-      const login = await request(app.getHttpServer())
-        .post('/api/auth/login')
-        .send({ email: employe.email, password: PASSWORD });
+      const login = await session(SUPABASE_TOKEN);
 
       const me = await request(app.getHttpServer())
         .get('/api/auth/me')

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 // eslint-disable-next-line no-unused-vars -- `motion` est utilisé en JSX (<motion.div>), que la config ESLint ne détecte pas.
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
@@ -7,8 +7,9 @@ import {
   FiZap, FiUsers, FiShield
 } from 'react-icons/fi';
 import { supabase } from '../../supabaseClient';
-import { apiClient, setApiToken } from '../../apiClient';
+import { useAuth } from '../../context/AuthContext';
 import { useLoginTransition } from '../../context/LoginTransitionContext';
+import { getMfaStatus, getVerifiedFactorId, openApiSession, startEnrollment, verifyCode } from '../../utils/mfa';
 import Brand from '../../components/Brand';
 import { REPAIR_TOOLS } from '../../components/repairTools';
 
@@ -172,68 +173,174 @@ function ShowcasePanel({ reduceMotion }) {
   );
 }
 
+// Saisie du code à 6 chiffres (activation et connexion).
+function CodeInput({ value, onChange, inputClass }) {
+  return (
+    <div>
+      <label htmlFor="login-code" className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-300">
+        Code à 6 chiffres
+      </label>
+      <div className="relative">
+        <FiShield className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+        <input
+          id="login-code"
+          type="text"
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          pattern="\d{6}"
+          maxLength={6}
+          required
+          autoFocus
+          value={value}
+          onChange={(e) => onChange(e.target.value.replace(/\D/g, '').slice(0, 6))}
+          className={`${inputClass} font-mono text-lg tracking-[0.5em]`}
+          placeholder="000000"
+        />
+      </div>
+    </div>
+  );
+}
+
+// Première activation : QR code à scanner avec l'application d'authentification.
+function EnrollInstructions({ enrollment }) {
+  const [showSecret, setShowSecret] = useState(false);
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+      <ol className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
+        <li><span className="font-semibold text-slate-900 dark:text-white">1.</span> Installez une application d'authentification (Google Authenticator, Microsoft Authenticator, Authy…).</li>
+        <li><span className="font-semibold text-slate-900 dark:text-white">2.</span> Scannez ce QR code avec l'application.</li>
+        <li><span className="font-semibold text-slate-900 dark:text-white">3.</span> Saisissez le code à 6 chiffres qu'elle affiche.</li>
+      </ol>
+      <div className="mt-4 flex justify-center">
+        <img src={enrollment.qrCode} alt="QR code d'activation de la double authentification" className="h-44 w-44 rounded-xl bg-white p-2" />
+      </div>
+      <button
+        type="button"
+        onClick={() => setShowSecret((v) => !v)}
+        className="mt-3 w-full text-center text-xs font-semibold text-blue-600 hover:underline dark:text-sky-400"
+      >
+        {showSecret ? 'Masquer la clé' : 'Impossible de scanner ? Afficher la clé à saisir'}
+      </button>
+      {showSecret && (
+        <p className="mt-2 break-all rounded-lg bg-slate-100 p-2 text-center font-mono text-sm text-slate-800 dark:bg-slate-800 dark:text-slate-100">
+          {enrollment.secret}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  // Étapes : 'password' → 'enroll' (première activation du 2FA) ou 'challenge' (code) → tableau de bord.
+  const [step, setStep] = useState('password');
+  const [enrollment, setEnrollment] = useState(null); // { factorId, qrCode, secret }
+  const [factorId, setFactorId] = useState(null);
+  const [code, setCode] = useState('');
   const { playLoginTransition } = useLoginTransition();
+  const { user, mfaVerified, loading: authLoading } = useAuth();
   const reduceMotion = useReducedMotion();
+  const resumed = useRef(false);
+
+  // Après le mot de passe : code à saisir si le 2FA est activé, sinon activation obligatoire.
+  const goToSecondFactor = async () => {
+    const { verified, enrolled } = await getMfaStatus();
+    if (verified) return finishLogin();
+    if (enrolled) {
+      setFactorId(await getVerifiedFactorId());
+      setStep('challenge');
+    } else {
+      setEnrollment(await startEnrollment());
+      setStep('enroll');
+    }
+  };
+
+  // Session déjà ouverte au mot de passe (page rechargée, ou renvoyé ici par une page protégée) :
+  // on reprend directement à l'étape du code.
+  useEffect(() => {
+    if (authLoading || !user || mfaVerified || resumed.current) return;
+    resumed.current = true;
+    goToSecondFactor().catch((err) => setError(err.message));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- une seule reprise par visite
+  }, [authLoading, user, mfaVerified]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
+    // Bloque la reprise automatique (useEffect ci-dessus) : c'est ce gestionnaire qui enchaîne.
+    resumed.current = true;
     try {
-      // 1. Authentification via Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
+      const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
       if (authError) throw authError;
-
-      const userEmail = authData.user.email;
-
-      // 1bis. Récupère un JWT du backend NestJS (module Réparations) — même mot de
-      // passe, vérifié côté serveur contre le même hash bcrypt Supabase. Non bloquant :
-      // si le backend est indisponible, l'app continue de fonctionner sur Supabase seul
-      // (messagerie/présence/calendrier), seul le module Réparations serait affecté.
-      try {
-        const { data: apiAuth } = await apiClient.post('/auth/login', { email, password });
-        setApiToken(apiAuth.access_token);
-      } catch (apiErr) {
-        console.error("Connexion au backend Réparations impossible :", apiErr.message);
-      }
-
-      // 2. Vérification du rôle dans notre table "employes"
-      const { data: employe } = await supabase
-        .from('employes')
-        .select('role')
-        .eq('email', userEmail)
-        .single();
-
-      // 3. Écran de transition animé, puis redirection vers le tableau de bord du rôle
-      if (employe) {
-        if (employe.role === 'Administrateur') {
-          playLoginTransition('/admin', 'Ouverture de l’administration…');
-        } else if (employe.role === 'Technicien') {
-          playLoginTransition('/technicien', 'Préparation de votre atelier…');
-        } else {
-          playLoginTransition('/manager', 'Préparation de votre boutique…');
-        }
-      } else {
-        playLoginTransition('/client', 'Chargement de votre suivi…');
-      }
-
+      await goToSecondFactor();
     } catch (err) {
+      resumed.current = false;
       console.error("Erreur de connexion:", err.message);
       setError("Identifiants incorrects. Veuillez réessayer.");
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleCode = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    try {
+      await verifyCode(step === 'enroll' ? enrollment.factorId : factorId, code);
+      await finishLogin();
+    } catch (err) {
+      console.error('Code 2FA refusé :', err.message);
+      setError('Code incorrect ou expiré. Saisissez le code actuellement affiché par votre application.');
+      setCode('');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Session aal2 obtenue : jeton de l'API puis redirection vers le tableau de bord du rôle.
+  const finishLogin = async () => {
+    // Non bloquant : si l'API est indisponible, l'app fonctionne sur Supabase seul
+    // (messagerie/présence/calendrier), seul le module Réparations serait affecté.
+    try {
+      await openApiSession();
+    } catch (apiErr) {
+      console.error('Connexion au backend Réparations impossible :', apiErr.message);
+    }
+
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    const { data: employe } = await supabase
+      .from('employes')
+      .select('role')
+      .eq('email', authUser.email)
+      .maybeSingle();
+
+    if (employe?.role === 'Administrateur') {
+      playLoginTransition('/admin', 'Ouverture de l’administration…');
+    } else if (employe?.role === 'Technicien') {
+      playLoginTransition('/technicien', 'Préparation de votre atelier…');
+    } else if (employe) {
+      playLoginTransition('/manager', 'Préparation de votre boutique…');
+    } else {
+      playLoginTransition('/client', 'Chargement de votre suivi…');
+    }
+  };
+
+  // Abandon de l'étape du code : on ferme la session ouverte par le mot de passe.
+  const cancelSecondFactor = async () => {
+    await supabase.auth.signOut();
+    setStep('password');
+    setEnrollment(null);
+    setFactorId(null);
+    setCode('');
+    setPassword('');
+    setError(null);
   };
 
   const inputClass =
@@ -255,9 +362,19 @@ export default function Login() {
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.6, ease: 'easeOut' }}
           >
-            <p className="text-sm font-semibold uppercase tracking-widest text-blue-600 dark:text-sky-400">Espace employés</p>
-            <h2 className="mt-2 text-3xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-4xl">Bon retour parmi nous</h2>
-            <p className="mt-3 text-slate-500 dark:text-slate-400">Connectez-vous pour accéder à votre atelier.</p>
+            <p className="text-sm font-semibold uppercase tracking-widest text-blue-600 dark:text-sky-400">
+              {step === 'password' ? 'Espace employés' : 'Double authentification'}
+            </p>
+            <h2 className="mt-2 text-3xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-4xl">
+              {step === 'password' && 'Bon retour parmi nous'}
+              {step === 'enroll' && 'Sécurisez votre compte'}
+              {step === 'challenge' && 'Vérification en deux étapes'}
+            </h2>
+            <p className="mt-3 text-slate-500 dark:text-slate-400">
+              {step === 'password' && 'Connectez-vous pour accéder à votre atelier.'}
+              {step === 'enroll' && 'La double authentification est obligatoire. Activez-la une fois : à chaque connexion, votre application vous donnera un code.'}
+              {step === 'challenge' && 'Saisissez le code à 6 chiffres affiché par votre application d’authentification.'}
+            </p>
 
             <AnimatePresence>
               {error && (
@@ -275,6 +392,8 @@ export default function Login() {
               )}
             </AnimatePresence>
 
+            {step === 'password' ? (
+            <>
             <form onSubmit={handleLogin} className="mt-8 space-y-5">
               <div>
                 <label htmlFor="login-email" className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-300">
@@ -356,6 +475,44 @@ export default function Login() {
               </span>
               <FiArrowRight className="text-slate-400" />
             </Link>
+            </>
+            ) : (
+              <form onSubmit={handleCode} className="mt-8 space-y-5">
+                {step === 'enroll' && enrollment && <EnrollInstructions enrollment={enrollment} />}
+                <CodeInput value={code} onChange={setCode} inputClass={inputClass} />
+
+                <motion.button
+                  type="submit"
+                  disabled={loading || code.length !== 6}
+                  whileHover={loading || reduceMotion ? {} : { y: -2 }}
+                  whileTap={loading ? {} : { scale: 0.98 }}
+                  className="group flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-3.5 font-semibold text-white shadow-lg shadow-blue-600/25 transition hover:shadow-xl hover:shadow-blue-600/30 disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  {loading ? (
+                    <>
+                      <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                      Vérification…
+                    </>
+                  ) : (
+                    <>
+                      {step === 'enroll' ? 'Activer et continuer' : 'Vérifier'}
+                      <FiArrowRight className="transition-transform group-hover:translate-x-1" />
+                    </>
+                  )}
+                </motion.button>
+
+                <div className="flex flex-col items-center gap-2 text-sm">
+                  {step === 'challenge' && (
+                    <p className="text-center text-slate-500 dark:text-slate-400">
+                      Téléphone perdu ou changé ? Contactez l'administrateur pour réinitialiser votre double authentification.
+                    </p>
+                  )}
+                  <button type="button" onClick={cancelSecondFactor} className="font-semibold text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-white">
+                    Annuler et changer de compte
+                  </button>
+                </div>
+              </form>
+            )}
           </motion.div>
         </div>
 

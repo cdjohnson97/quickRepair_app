@@ -2,7 +2,7 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function ProtectedRoute({ children, allowedRoles }) {
-  const { user, role, loading } = useAuth();
+  const { user, role, mfaVerified, loading } = useAuth();
 
   // 1. Pendant qu'on vérifie l'identité, on affiche un petit chargement
   if (loading) {
@@ -13,8 +13,9 @@ export default function ProtectedRoute({ children, allowedRoles }) {
     );
   }
 
-  // 2. Si l'utilisateur n'est pas connecté du tout -> direction le Login
-  if (!user) {
+  // 2. Si l'utilisateur n'est pas connecté, ou n'a pas encore saisi son code de double
+  //    authentification (session au mot de passe seul) -> direction le Login
+  if (!user || !mfaVerified) {
     return <Navigate to="/login" replace />;
   }
 

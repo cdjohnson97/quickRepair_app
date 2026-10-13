@@ -5,6 +5,7 @@ import { PassportModule } from '@nestjs/passport';
 import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
 import { JwtStrategy } from './jwt.strategy.js';
+import { SupabaseAuthClient } from './supabase-auth.client.js';
 
 const jwtModule = JwtModule.registerAsync({
   imports: [ConfigModule],
@@ -18,7 +19,7 @@ const jwtModule = JwtModule.registerAsync({
 @Module({
   imports: [PassportModule.register({ defaultStrategy: 'jwt' }), jwtModule],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
+  providers: [AuthService, JwtStrategy, SupabaseAuthClient],
   exports: [AuthService, jwtModule, PassportModule]
 })
 export class AuthModule {}

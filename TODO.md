@@ -34,6 +34,14 @@ Le projet doit obligatoirement couvrir 8 des 11 compétences (marquées \* ci-de
 - [ ] Fermer les inscriptions publiques Supabase (après avoir déplacé la création de compte employé côté serveur).
 - [ ] Supprimer la colonne `employes.mot_de_passe_hash` (vide) puis `prisma db pull`.
 
+### 1 bis. Double authentification (2FA) obligatoire — voir `docs/securite-2fa.md`
+- [x] Web : activation (QR code) à la première connexion, code à chaque connexion, pages protégées exigeant `aal2`.
+- [x] API : `POST /auth/session` (session Supabase `aal2` exigée), suppression de `/auth/login`.
+- [ ] Recette web avec un compte de chaque rôle (première activation puis reconnexion).
+- [ ] Mobile : écran de code et d'activation.
+- [ ] RLS : exiger `aal2` (après le mobile).
+- [ ] Admin : bouton de réinitialisation du 2FA d'un employé (Edge Function).
+
 ### 2. Composant NoSQL (compétence obligatoire)
 - [ ] Ajouter un composant NoSQL dans le serveur NestJS : Redis (cache + adapter Socket.io) ou MongoDB (journal d'audit / notifications).
 - [ ] Tests unitaires et de sécurité associés.

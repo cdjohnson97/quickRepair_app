@@ -4,7 +4,6 @@ import { vi } from 'vitest';
 // base Supabase, les tests ne doivent jamais y toucher).
 export function createPrismaMock() {
   const prisma: any = {
-    users: { findFirst: vi.fn() },
     employes: { findUnique: vi.fn(), findFirst: vi.fn(), findMany: vi.fn() },
     clients: { upsert: vi.fn() },
     appareils: { create: vi.fn() },
